@@ -1,5 +1,43 @@
 import pyodbc
 from config import settings
+from pathlib import Path
+
+SQL_SERVER_TO_PG_MAP = {
+    "bigint": "BIGINT",
+    "binary": "BYTEA",
+    "bit": "BOOLEAN",
+    "char": "CHAR",
+    "date": "DATE",
+    "datetime": "TIMESTAMP",
+    "datetime2": "TIMESTAMP",
+    "datetimeoffset": "TIMESTAMP WITH TIME ZONE",
+    "decimal": "DECIMAL",
+    "float": "DOUBLE PRECISION",
+    "geography": "GEOGRAPHY",
+    "geometry": "GEOMETRY",
+    "hierarchyid": "TEXT",
+    "image": "BYTEA",
+    "int": "INTEGER",
+    "money": "NUMERIC(19,4)",
+    "nchar": "CHAR",
+    "ntext": "TEXT",
+    "numeric": "NUMERIC",
+    "nvarchar": "VARCHAR",
+    "real": "REAL",
+    "smalldatetime": "TIMESTAMP(0)",
+    "smallint": "SMALLINT",
+    "smallmoney": "NUMERIC(10,4)",
+    "sql_variant": "TEXT",
+    "sysname": "VARCHAR(128)",
+    "text": "TEXT",
+    "time": "TIME",
+    "timestamp": "BYTEA",  # rowversion
+    "tinyint": "SMALLINT",
+    "uniqueidentifier": "UUID",
+    "varbinary": "BYTEA",
+    "varchar": "VARCHAR",
+    "xml": "XML",
+}
 
 def get_conn_strings(): 
     params = {
@@ -27,7 +65,8 @@ def get_conn_strings():
     }
 
 def get_sql_statements(file_name):
-    filepath = f"sql_queries/{file_name}"
+    SRC_DIR = Path(__file__).resolve().parent.parent
+    filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
         sql_script = f.read()
     return [cmd.strip() for cmd in sql_script.split(';') if cmd.strip()]
@@ -38,4 +77,5 @@ def get_data_chunks(cursor, batch_size=5000):
         if not rows:
             break
         yield rows 
+
 

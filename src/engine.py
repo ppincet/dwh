@@ -3,6 +3,7 @@ from config import settings
 import pyodbc
 import typer
 from utils import db_helper
+import process
 
 app = typer.Typer(
     help="Утилита управления движком (Engine CLI)", add_completion=False
@@ -13,21 +14,8 @@ def init():
     '''
         system init
     '''
-    # statements = db_helper.get_sql_statements('get_refs.sql')
-    
-    try:
-        conn_strings = db_helper.get_conn_strings()
-        src_conn = pyodbc.connect(conn_strings['src'])
-        dst_conn = pyodbc.connect(conn_strings['dst'])
-
-
-    except Exception as e:
-        print(f'fatal: {e}')
-    finally:
-        src_conn.close()
-        dst_conn.close()
-        print ('hello, world!')
-
+    # process.init_subkonto()
+    process.create_refs()
 @app.command()
 def upd():
     '''
