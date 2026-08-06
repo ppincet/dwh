@@ -78,4 +78,8 @@ def get_data_chunks(cursor, batch_size=5000):
             break
         yield rows 
 
-
+def create_table(name, metadata):
+    '''
+    
+    '''
+def upload_ref(name):

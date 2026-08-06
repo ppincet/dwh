@@ -42,7 +42,7 @@ def transfer_data():
 #    
 #         src_cursor.execute("SELECT col1, col2, col3 FROM dbo.SourceTable")
         
-#         batch_size = 5000  # Оптимальный размер пакета
+#         batch_size = 5000 
 #         while True:
 #             rows = src_cursor.fetchmany(batch_size)
 #             if not rows:

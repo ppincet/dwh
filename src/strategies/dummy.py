@@ -91,7 +91,7 @@ class TableGenerator:
 # ==========================================
 
 if __name__ == "__main__":
-    # Метаданные едины для любой СУБД
+   
     table_metadata = {
         "table_name": "users",
         "fields": {
