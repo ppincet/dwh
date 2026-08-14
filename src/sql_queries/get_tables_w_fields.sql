@@ -14,4 +14,5 @@ where 1=1
 	and (o.name LIKE '%Reference%' or o.name like '%Reference%VT%')
 	and o.name not like '%RefSinf%'
 	and o.name not like '%chngr%'
-order by o.name
+	and (c.name like '_Fld%Ref' or c.name like '%TYPE')
+order by o.name, c.name
