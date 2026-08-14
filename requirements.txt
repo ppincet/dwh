@@ -2,3 +2,5 @@ python-dotenv
 pyodbc>=5.0.0
 typer
 psycopg2-binary
+pandas>=2.0.0
+openpyxl>=3.0.0
