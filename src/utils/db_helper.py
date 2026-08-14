@@ -1,6 +1,7 @@
 import pyodbc
 from config import settings
 from pathlib import Path
+import pandas as pd
 
 SQL_SERVER_TO_PG_MAP = {
     "bigint": "BIGINT",
@@ -78,7 +79,27 @@ def get_data_chunks(cursor, batch_size=5000):
             break
         yield rows 
 
-def create_table(name, metadata):
+def create_table(name):
+    sql_statement = f'''
+        DROP TABLE IF EXISTS {name};
+        create table {name} (
+
+    '''
+    df = pd.read_excel('./vcb v1.xlsx', 
+        sheet_name = 'fields',
+        header=None)
+    result = df[df[3] == name]
+    if not result.empty:
+        for idx, row in result.iterrows():
+                sql_statement += f'{row[3]} ({row[4]}),'
+    print(sql_statement)
+        
+    # DROP TABLE IF EXISTS dbo.MyTable;
+    # CREATE TABLE dbo.MyTable (
+    # ID INT IDENTITY(1,1) PRIMARY KEY,
+    # Name NVARCHAR(100) NOT NULL,
+    # CreatedAt DATETIME DEFAULT GETDATE()
+    #);
     '''
     
     '''
