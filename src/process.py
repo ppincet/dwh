@@ -2,7 +2,7 @@ import datetime
 import pyodbc
 import csv
 import psycopg2
-from config import settings
+#from config import settings
 from utils import db_helper
 
 def init_subkonto_():

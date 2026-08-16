@@ -1,5 +1,5 @@
 # main entry point
-from config import settings
+# from config import settings
 import pyodbc
 import typer
 from utils import db_helper
@@ -23,12 +23,12 @@ def upd():
     '''
     typer.echo('upd done')
 
-def get_data_chunks(cursor, batch_size=5000):
-    while True:
-        rows = cursor.fetchmany(batch_size)
-        if not rows:
-            break
-        yield rows 
+# def get_data_chunks(cursor, batch_size=5000):
+#     while True:
+#         rows = cursor.fetchmany(batch_size)
+#         if not rows:
+#             break
+#         yield rows 
 if __name__ == "__main__":
   app()
 # driver = '{ODBC Driver 18 for SQL Server}'

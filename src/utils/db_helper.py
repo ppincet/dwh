@@ -1,5 +1,5 @@
 import pyodbc
-from config import settings
+# from config import settings
 from pathlib import Path
 import pandas as pd
 
@@ -79,7 +79,7 @@ def get_data_chunks(cursor, batch_size=5000):
             break
         yield rows 
 
-def create_table(name):
+def create_table_(name):
     sql_statement = f'''
         DROP TABLE IF EXISTS {name};
         create table {name} (
@@ -89,9 +89,18 @@ def create_table(name):
         sheet_name = 'fields',
         header=None)
     result = df[df[3] == name]
+    
     if not result.empty:
-        for idx, row in result.iterrows():
-                sql_statement += f'{row[3]} ({row[4]}),'
+        # lines = [f"\t{row[4]} \t{row[10]} ()" for _, row in result.iterrows()]
+        # sql_statement += ",\n".join(lines)
+
+
+        lines = [
+         f"\t{row[4]} \t{row[10]} ({f'{row[11]}, {row[12]}' if str(row[10]).lower().startswith('numeric') else row[11]})"
+            for _, row in result.iterrows()
+        ]
+    sql_statement += ",\n".join(lines)
+
     print(sql_statement)
         
     # DROP TABLE IF EXISTS dbo.MyTable;
@@ -104,3 +113,46 @@ def create_table(name):
     
     '''
 # def upload_ref(name):
+
+def create_table(name):
+    sql_statement = f'''
+        DROP TABLE IF EXISTS {name};
+        create table {name} (
+    '''
+    
+    df = pd.read_excel('./vcb v1.xlsx', 
+        sheet_name='fields',
+        header=None)
+    result = df[df[3] == name]
+    
+    if not result.empty:
+        lines = []
+        for _, row in result.iterrows():
+            col_name = row[4]
+            data_type = str(row[10]).strip().lower()
+            
+            # Безопасно убираем .0 у параметров, если они есть
+            try:
+                p1 = int(float(row[11])) if pd.notna(row[11]) else None
+            except (ValueError, TypeError):
+                p1 = row[11]
+                
+            try:
+                p2 = int(float(row[12])) if pd.notna(row[12]) else None
+            except (ValueError, TypeError):
+                p2 = row[12]
+            
+            # Проверяем тип данных
+            if data_type.startswith(('decimal', 'numeric')):
+                args_str = f"{p1}, {p2}"
+            else:
+                args_str = f"{p1}"
+                
+            lines.append(f"\t{col_name} \t{data_type} ({args_str})")
+            
+        sql_statement += ",\n".join(lines)
+    
+
+    sql_statement += "\n);"
+    
+    print(sql_statement)
