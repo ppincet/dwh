@@ -1,0 +1,10 @@
+create table Z_SUBKONTO(
+	ID bigint not null identity,
+	Z_TYPE binary(4) not null,
+	Z_REF binary(16) not null
+)
+ALTER TABLE Z_SUBKONTO 
+ADD CONSTRAINT PK_Z_SUBKONTO PRIMARY KEY CLUSTERED (ID);
+
+CREATE UNIQUE NONCLUSTERED INDEX UIX_Z_SUBKONTO_Type_Ref 
+ON Z_SUBKONTO (Z_TYPE, Z_REF);

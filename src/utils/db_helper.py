@@ -79,39 +79,7 @@ def get_data_chunks(cursor, batch_size=5000):
             break
         yield rows 
 
-def create_table_(name):
-    sql_statement = f'''
-        DROP TABLE IF EXISTS {name};
-        create table {name} (
 
-    '''
-    df = pd.read_excel('./vcb v1.xlsx', 
-        sheet_name = 'fields',
-        header=None)
-    result = df[df[3] == name]
-    
-    if not result.empty:
-        # lines = [f"\t{row[4]} \t{row[10]} ()" for _, row in result.iterrows()]
-        # sql_statement += ",\n".join(lines)
-
-
-        lines = [
-         f"\t{row[4]} \t{row[10]} ({f'{row[11]}, {row[12]}' if str(row[10]).lower().startswith('numeric') else row[11]})"
-            for _, row in result.iterrows()
-        ]
-    sql_statement += ",\n".join(lines)
-
-    print(sql_statement)
-        
-    # DROP TABLE IF EXISTS dbo.MyTable;
-    # CREATE TABLE dbo.MyTable (
-    # ID INT IDENTITY(1,1) PRIMARY KEY,
-    # Name NVARCHAR(100) NOT NULL,
-    # CreatedAt DATETIME DEFAULT GETDATE()
-    #);
-    '''
-    
-    '''
 # def upload_ref(name):
 
 def create_table(name):
@@ -130,29 +98,24 @@ def create_table(name):
         for _, row in result.iterrows():
             col_name = row[4]
             data_type = str(row[10]).strip().lower()
-            
-            # Безопасно убираем .0 у параметров, если они есть
-            try:
-                p1 = int(float(row[11])) if pd.notna(row[11]) else None
-            except (ValueError, TypeError):
-                p1 = row[11]
-                
-            try:
-                p2 = int(float(row[12])) if pd.notna(row[12]) else None
-            except (ValueError, TypeError):
-                p2 = row[12]
-            
-            # Проверяем тип данных
+            p1 = int(float(row[11])) if pd.notna(row[11]) else None
+            if p1 == -1:
+                p1 = 'max'
+            p2 = int(float(row[12])) if pd.notna(row[12]) else None
             if data_type.startswith(('decimal', 'numeric')):
                 args_str = f"{p1}, {p2}"
             else:
-                args_str = f"{p1}"
-                
+                args_str = f"{p1}"        
             lines.append(f"\t{col_name} \t{data_type} ({args_str})")
-            
-        sql_statement += ",\n".join(lines)
-    
-
+        sql_statement += ",\n".join(lines)    
     sql_statement += "\n);"
-    
     print(sql_statement)
+
+def get_next_id(max_bytes: bytes) -> bytes:
+    if not max_bytes:
+        current_int = 0
+    else:
+        current_int = int.from_bytes(max_bytes, byteorder='big')
+    
+    next_int = current_int + 1
+    return next_int.to_bytes(16, byteorder='big')

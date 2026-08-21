@@ -15,7 +15,9 @@ def init():
         system init
     '''
     # process.init_subkonto()
-    db_helper.create_table('_Reference133')
+    # db_helper.create_table('_Reference133')
+    print(0xBFE2F6CAE319E4354248DB8359EFE3E6)
+    print(get_next_id())
 @app.command()
 def upd():
     '''
