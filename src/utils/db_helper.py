@@ -1,5 +1,5 @@
 import pyodbc
-# from config import settings
+from config import settings
 from pathlib import Path
 import pandas as pd
 
@@ -42,13 +42,13 @@ SQL_SERVER_TO_PG_MAP = {
 
 def get_conn_strings(): 
     params = {
-        'src' :{
-            'DRIVER' : settings.SRC_DRV,
-            'PORT' : settings.SRC_PORT,
-            'SERVER' : settings.SRC_SRV,
-            'DATABASE' : settings.SRC_DB,
-            'UID' : settings.SRC_USR,
-            'PWD' : settings.SRC_PWD,
+        'src_1cb' :{
+            'DRIVER' : settings.SRC_1CB_DRV,
+            'PORT' : settings.SRC_1CB_PORT,
+            'SERVER' : settings.SRC_1CB_SRV,
+            'DATABASE' : settings.SRC_1CB_DB,
+            'UID' : settings.SRC_1CB_USR,
+            'PWD' : settings.SRC_1CB_PWD,
             'TrustServerCertificate' : 'yes'
             },
         'dst' : {
@@ -61,9 +61,10 @@ def get_conn_strings():
             }
     }    
     return {
-        'src' : ";".join([f"{k}={v}" for k, v in params['src'].items()]),
+        'src_1cb' : ";".join([f"{k}={v}" for k, v in params['src_1cb'].items()]),
         'dst' : ";".join([f"{k}={v}" for k, v in params['dst'].items()]),
     }
+
 
 def get_sql_statements(file_name):
     SRC_DIR = Path(__file__).resolve().parent.parent
