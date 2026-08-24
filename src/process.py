@@ -48,7 +48,7 @@ def init_subkonto():
     src_connection = None
     dst_connection = None
     try:
-        src_connection = pyodbc.connect(conn_strings['src'])
+        src_connection = pyodbc.connect(conn_strings['src_1cb'])
         dst_connection = pyodbc.connect(conn_strings['dst'])
         dst_connection.autocommit = False 
         dst_cursor = dst_connection.cursor()
@@ -59,18 +59,18 @@ def init_subkonto():
         
         for row in src_cursor.fetchall():
             skonto_type = f'{int(row[0][10:]):08X}'
-            
+            print(skonto_type)
             try:
                 statement = f"""
-                    select '{skonto_type} ztype', 
+                    select 0x{skonto_type} ztype, 
                          _idrref zref
                     from [{row[0]}] (nolock)
                 """
-                
+                print(statement)
                 source_cursor = src_connection.cursor()
                 source_cursor.execute(statement)
                 
-                insert_query = "INSERT INTO z_subkonto (z_subkonto_type, z_subkonto_ref) VALUES (?, ?)"
+                insert_query = "INSERT INTO Z_SUBKONTO(Z_TYPE, Z_REF) VALUES (?, ?)"
                 
                 for chunk in db_helper.get_data_chunks(source_cursor, 5000):
                     dst_cursor.executemany(insert_query, chunk)
