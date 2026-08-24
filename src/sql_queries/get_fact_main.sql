@@ -11,9 +11,6 @@ SELECT
     DATEADD(year, -2000, rg.[_period]) z_period,
     0x00000009 z_bk_dt_type,
     rg._AccountDtRRef  z_bk_dt_ref,
-    '00.00' z_mng_dt,
-    1 z_qnt,
-    1 z_trf,
     rg._fld617 z_amnt,
 
     dt_sk.sk0_t z_dt_sk1_type,
@@ -27,8 +24,6 @@ SELECT
 
     0x00000009 z_bk_ct_type,
     rg._AccountCtRRef  z_bk_ct_ref,
-    '99.99' z_mng_ct,
-    
  
     ct_sk.sk0_t z_ct_sk0_type,
     ct_sk.sk0_r z_ct_sk1_ref,
@@ -105,4 +100,3 @@ WHERE rg._period BETWEEN '4025-01-01 00:00:00' AND '4025-01-01 23:59:59'
       '90.10.1', '90.10.11', '90.7.1', '90.7.2', 
       '91.4.1', '91.4.11', '91.1.1'
   )
-  ) t

@@ -28,14 +28,14 @@ def init_subkonto_():
             """
             source_cursor = connection.cursor()
             source_cursor.execute(statement)
-            csv_file_path = './sources/tempo.csv'
-            with open(csv_file_path, mode="w", encoding="utf-8", newline="") as f:
-                writer = csv.writer(f, delimiter=",")
-                for chunk in db_helper.get_data_chunks(source_cursor, 5000):
-                    writer.writerows(chunk)
-            with open(csv_file_path, mode="r", encoding="utf-8") as f:
-                pg_cursor.copy_expert(sql="COPY z_subkonto_all (z_subkonto_type, z_subkonto_ref) FROM STDIN WITH CSV", file=f)
-                pg_connection.commit()
+            # csv_file_path = './sources/tempo.csv'
+            # with open(csv_file_path, mode="w", encoding="utf-8", newline="") as f:
+            #     writer = csv.writer(f, delimiter=",")
+            #     for chunk in db_helper.get_data_chunks(source_cursor, 5000):
+            #         writer.writerows(chunk)
+            # with open(csv_file_path, mode="r", encoding="utf-8") as f:
+            #     pg_cursor.copy_expert(sql="COPY z_subkonto_all (z_subkonto_type, z_subkonto_ref) FROM STDIN WITH CSV", file=f)
+            #     pg_connection.commit()
             print(f'{datetime.datetime.now()} : {row[0]} - done')
     except Exception as e:
         print(f'fatal: {e}')
@@ -62,13 +62,12 @@ def init_subkonto():
             
             try:
                 statement = f"""
-                    select '{skonto_type}', 
-                        convert(varchar(32), _idrref, 2) _idrref
+                    select '{skonto_type} ztype', 
+                         _idrref zref
                     from [{row[0]}] (nolock)
                 """
                 
                 source_cursor = src_connection.cursor()
-                source_cursor.arraysize = 5000
                 source_cursor.execute(statement)
                 
                 insert_query = "INSERT INTO z_subkonto (z_subkonto_type, z_subkonto_ref) VALUES (?, ?)"
