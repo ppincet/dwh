@@ -62,7 +62,7 @@ def init_subkonto():
             
             try:
                 statement = f"""
-                    select '{skonto_type} ztype', 
+                    select '{skonto_type}' ztype, 
                          _idrref zref
                     from [{row[0]}] (nolock)
                 """
