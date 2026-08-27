@@ -2,6 +2,7 @@ import pyodbc
 from config import settings
 from pathlib import Path
 import pandas as pd
+import re
 
 SQL_SERVER_TO_PG_MAP = {
     "bigint": "BIGINT",
@@ -98,6 +99,10 @@ def create_table(name):
         lines = []
         for _, row in result.iterrows():
             col_name = row[4]
+            if re.search(r"RRRef$", col_name):
+               # act
+            elif re.search(r"RRef$", col_name):
+               # act
             data_type = str(row[10]).strip().lower()
             p1 = int(float(row[11])) if pd.notna(row[11]) else None
             if p1 == -1:
