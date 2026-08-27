@@ -88,6 +88,7 @@ def create_table(name):
     sql_statement = f'''
         DROP TABLE IF EXISTS {name};
         create table {name} (
+        IDRTYPE \t binary(4)
     '''
     
     df = pd.read_excel('./vcb v1.xlsx', 
@@ -98,11 +99,14 @@ def create_table(name):
     if not result.empty:
         lines = []
         for _, row in result.iterrows():
-            col_name = row[4]
-            if re.search(r"RRRef$", col_name):
-               # act
-            elif re.search(r"RRef$", col_name):
-               # act
+            col_name = row[4].upper()[1:]
+            if re.search(r"(RRREF|RTREF)$", col_name):
+                ref_type = 2
+            elif re.search(r"RREF$", col_name):
+                ref_type = 1
+                ref_ref = '0x10000000' if 'Перечисление' in str(row[7]) else row[8]            
+            else: ref_type = 0
+            print(ref_type)
             data_type = str(row[10]).strip().lower()
             p1 = int(float(row[11])) if pd.notna(row[11]) else None
             if p1 == -1:
@@ -111,8 +115,11 @@ def create_table(name):
             if data_type.startswith(('decimal', 'numeric')):
                 args_str = f"{p1}, {p2}"
             else:
-                args_str = f"{p1}"        
-            lines.append(f"\t{col_name} \t{data_type} ({args_str})")
+                args_str = f"{p1}"
+            if 'TYPE' not in col_name: lines.append(f"\t{col_name} \t{data_type} ({args_str})")
+            if ref_type == 1 :
+                # 2do - create full enumerations list and check
+                lines.append(f"-- from 1\t{col_name}RTREF\tbinary(4) default 0x{ref_ref}")
         sql_statement += ",\n".join(lines)    
     sql_statement += "\n);"
     print(sql_statement)

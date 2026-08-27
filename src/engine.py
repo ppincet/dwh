@@ -36,7 +36,7 @@ def init(log_type: str = typer.Option(
     '''
         system init
     '''
-    db_helper.create_table('_Reference133')
+    db_helper.create_table('_Reference153')
 
     #process.init_subkonto()
 @app.command()
