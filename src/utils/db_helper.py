@@ -3,7 +3,8 @@ from config import settings
 from pathlib import Path
 import pandas as pd
 import re
-
+import csv
+from sqlalchemy import create_engine, Table, MetaData
 SQL_SERVER_TO_PG_MAP = {
     "bigint": "BIGINT",
     "binary": "BYTEA",
@@ -84,11 +85,10 @@ def get_data_chunks(cursor, batch_size=5000):
 
 # def upload_ref(name):
 
-def create_table(name):
+def create_table(name: str): -> BOOLEAN
     sql_statement = f'''
         DROP TABLE IF EXISTS {name};
         create table {name} (
-        IDRTYPE \t binary(4)
     '''
     
     df = pd.read_excel('./vcb v1.xlsx', 
@@ -98,15 +98,18 @@ def create_table(name):
     
     if not result.empty:
         lines = []
+        idx = []
         for _, row in result.iterrows():
             col_name = row[4].upper()[1:]
             if re.search(r"(RRREF|RTREF)$", col_name):
                 ref_type = 2
-            elif re.search(r"RREF$", col_name):
+            elif re.search(r"RREF$", col_name) and col_name != 'IDRREF':
                 ref_type = 1
                 ref_ref = '0x10000000' if 'Перечисление' in str(row[7]) else row[8]            
+            elif col_name == 'IDRREF':
+                ref_type = 3
+                ref_ref = 
             else: ref_type = 0
-            print(ref_type)
             data_type = str(row[10]).strip().lower()
             p1 = int(float(row[11])) if pd.notna(row[11]) else None
             if p1 == -1:
@@ -120,6 +123,8 @@ def create_table(name):
             if ref_type == 1 :
                 # 2do - create full enumerations list and check
                 lines.append(f"-- from 1\t{col_name}RTREF\tbinary(4) default 0x{ref_ref}")
+            if ref_type == 3 :
+                lines.append(f"-- from 3\t{col_name}IDTREF\tbinary(4) default 0x{ref_ref}")
         sql_statement += ",\n".join(lines)    
     sql_statement += "\n);"
     print(sql_statement)
@@ -132,3 +137,86 @@ def get_next_id(max_bytes: bytes) -> bytes:
     
     next_int = current_int + 1
     return next_int.to_bytes(16, byteorder='big')
+'''
+    converts hex from ms sql like 0x into bytes for SQLAlchemy
+'''
+def convert_hex_to_bytes(val: str) -> bytes:
+    if pd.isna(val):
+        return None
+    val_str = str(val).strip()
+    if val_str.startswith('0x') or val_str.startswith('0X'):
+        val_str = val_str[2:]
+    return bytes.fromhex(val_str)
+
+# initial and replication 
+def populate_enums():   
+    server = f"{settings.DST_SRV},{settings.DST_PORT}"
+    database = settings.DST_DB
+    username = settings.DST_USR
+    password = settings.DST_PWD
+    connection_string = (
+        f"mssql+pyodbc://{username}:{password}@{server}/{database}"
+        f"?driver=ODBC+Driver+17+for+SQL+Server"    
+    )
+  
+    try:
+        engine = create_engine(connection_string)
+        df = pd.read_csv('./enums.csv', 
+            sep=';', 
+            encoding='utf-8',
+            header=None,  
+            names=['ZREF', 'ZSYN', 'ZDESCR'])
+        
+        if 'ZREF' in df.columns:
+            df['ZREF'] = df['ZREF'].apply(convert_hex_to_bytes)
+        df.to_sql(
+            name='ZENUM',
+            con=engine,
+            if_exists='append',  
+            index=False,         
+            chunksize=1000,
+            dtype={
+            'ZREF': BINARY(16),  
+            'ZSYN': NVARCHAR(128),    
+            'ZDESCR': NVARCHAR(255)  
+        }
+        )
+        
+    except Exception as e:
+        print(f"Exception: {e}")
+    
+def read_csv_chunks(file_path, chunk_size=200):
+    with open(file_path, mode='r', encoding='utf-8') as f:
+        # Указываем разделитель ';'
+        reader = csv.DictReader(f, delimiter=';')
+        chunk = []
+        
+        for row in reader:
+            processed_row = {
+                'ZREF': convert_hex_to_bytes(row.get('ZREF')),
+                'ZSYN': row.get('ZSYN'),
+                'ZDESCR': row.get('ZDESCR')
+                # 'ZTYPE' не берем, если в БД срабатывает DEFAULT
+            }
+            chunk.append(processed_row)
+            if len(chunk) == chunk_size:
+                yield chunk
+                chunk = []
+        if chunk:
+            yield chunk
+
+    # ... (здесь ваше создание engine) ...
+
+
+    metadata = MetaData()
+    zenum_table = Table('ZENUM', metadata, autoload_with=engine)
+
+    try:
+        with engine.begin() as connection:
+            for chunk in read_csv_chunks('./enums.csv', chunk_size=200):
+                connection.execute(zenum_table.insert(), chunk)
+                
+        print("Все данные успешно загружены порциями без Pandas!")
+
+    except Exception as e:
+        print(f"Произошла ошибка, всё откачено: {e}")
