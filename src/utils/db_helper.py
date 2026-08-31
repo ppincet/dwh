@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import re
 import csv
-from sqlalchemy import create_engine, Table, MetaData
+# from sqlalchemy import create_engine, Table, MetaData
 SQL_SERVER_TO_PG_MAP = {
     "bigint": "BIGINT",
     "binary": "BYTEA",
@@ -85,10 +85,99 @@ def get_data_chunks(cursor, batch_size=5000):
 
 # def upload_ref(name):
 
-def create_table(name: str): -> BOOLEAN
+def create_table(name: str) -> bool:
+    EXCLUDED = {
+        'PREDEFINEDID',
+        'VERSION',
+    }
+    real_name = name[1:].upper()
     sql_statement = f'''
-        DROP TABLE IF EXISTS {name};
-        create table {name} (
+        DROP TABLE IF EXISTS {real_name};
+        create table {real_name} (
+    '''
+    
+    df = pd.read_excel('./vcb v1.xlsx', 
+        sheet_name='fields',
+        header=None)
+    result = df[df[3] == name]
+    
+    if not result.empty:
+        lines = []
+        for _, row in result.iterrows():
+            col_name = row[4].upper()[1:]
+            if col_name in EXCLUDED: 
+                continue
+            
+            # Пропускаем вторую часть ссылки (RRREF), так как мы обрабатываем их парами
+            if col_name.endswith('RRREF'):
+                continue
+
+            col_name_pure_ = re.search(r"^FLD\d+", col_name)
+            col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
+            
+            if re.search(r"(RRREF|RTREF)$", col_name):
+                ref_type = 2
+                # Берем дефолтное значение для ссылки из 7-й или 8-й колонки Excel
+                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else (row[8] if pd.notna(row[8]) else '10000000')
+            elif (re.search(r"RREF$", col_name) 
+                    and col_name != 'IDRREF' 
+                    and 'PARENT' not in col_name):
+                ref_type = 1
+                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else (row[8] if pd.notna(row[8]) else '10000000')
+            elif col_name == 'IDRREF':
+                ref_type = 3
+                ref_ref = row[0]
+            elif 'PARENT' in col_name:
+                ref_type = 4
+                ref_ref = row[0]
+            else: 
+                ref_type = 0
+                ref_ref = ''
+                
+            data_type = str(row[10]).strip().lower()
+            p1 = int(float(row[11])) if pd.notna(row[11]) else None
+            if p1 == -1:
+                p1 = 'max'
+            p2 = int(float(row[12])) if pd.notna(row[12]) else None
+            
+            if data_type.startswith(('decimal', 'numeric')):
+                args_str = f"{p1}, {p2}"
+            else:
+                args_str = f"{p1}"
+                
+            # skip TYPE (common, binary(1) field)
+            if 'TYPE' in col_name: 
+                continue
+                
+            # Обработка типов полей
+            if ref_type in (1, 2):
+                # Очищаем суффиксы RTREF/RRREF, чтобы получить чистое имя поля для пары
+                base_col = re.sub(r'(RTREF|RRREF)$', '', col_name)
+                lines.append(f"\t{base_col}RTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\t{base_col}RRREF\tbinary(16) not null")
+            elif ref_type == 3:
+                lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\tIDRREF\tbinary(16) not null")
+            elif ref_type == 4:
+                lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
+            elif ref_type == 0:
+                lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
+                
+        lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF)')
+        sql_statement += ",\n".join(lines)    
+        
+    sql_statement += "\n);"
+    print(sql_statement)
+def create_table_(name: str) -> bool:
+    EXCLUDED = {
+        'PREDEFINEDID',
+        'VERSION',
+        }
+    real_name = name[1:].upper()
+    sql_statement = f'''
+        DROP TABLE IF EXISTS {real_name};
+        create table {real_name} (
     '''
     
     df = pd.read_excel('./vcb v1.xlsx', 
@@ -101,15 +190,27 @@ def create_table(name: str): -> BOOLEAN
         idx = []
         for _, row in result.iterrows():
             col_name = row[4].upper()[1:]
+            if col_name in EXCLUDED: 
+                continue
+            col_name_pure_ = re.search(r"^FLD\d+", col_name)
+            col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
             if re.search(r"(RRREF|RTREF)$", col_name):
                 ref_type = 2
-            elif re.search(r"RREF$", col_name) and col_name != 'IDRREF':
+            elif (re.search(r"RREF$", col_name) 
+                    and col_name != 'IDRREF' 
+                    and 'PARENT' not in col_name):
                 ref_type = 1
-                ref_ref = '0x10000000' if 'Перечисление' in str(row[7]) else row[8]            
+                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else row[8]            
             elif col_name == 'IDRREF':
                 ref_type = 3
-                ref_ref = 
-            else: ref_type = 0
+                ref_ref = row[0]
+
+            elif 'PARENT' in col_name:
+                ref_type = 4
+                ref_ref = row[0]
+            else: 
+                ref_type = 0
+                ref_ref = ''
             data_type = str(row[10]).strip().lower()
             p1 = int(float(row[11])) if pd.notna(row[11]) else None
             if p1 == -1:
@@ -119,16 +220,26 @@ def create_table(name: str): -> BOOLEAN
                 args_str = f"{p1}, {p2}"
             else:
                 args_str = f"{p1}"
-            if 'TYPE' not in col_name: lines.append(f"\t{col_name} \t{data_type} ({args_str})")
+            # skip TYPE (common, binary(1) field)
+            if 'TYPE' in col_name: continue
+            # lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
             if ref_type == 1 :
-                # 2do - create full enumerations list and check
-                lines.append(f"-- from 1\t{col_name}RTREF\tbinary(4) default 0x{ref_ref}")
+                lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\t{col_name_pure}RRREF\tbinary(16) not null")
             if ref_type == 3 :
-                lines.append(f"-- from 3\t{col_name}IDTREF\tbinary(4) default 0x{ref_ref}")
+                lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\tIDRREF\tbinary(16) not null")
+            if ref_type == 4:
+                lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
+                lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
+            if ref_type == 0:
+                lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
+        lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF)')
+
         sql_statement += ",\n".join(lines)    
     sql_statement += "\n);"
     print(sql_statement)
-
+    return True
 def get_next_id(max_bytes: bytes) -> bytes:
     if not max_bytes:
         current_int = 0
