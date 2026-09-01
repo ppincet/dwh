@@ -85,7 +85,7 @@ def get_data_chunks(cursor, batch_size=5000):
 
 # def upload_ref(name):
 
-def create_table(name: str) -> bool:
+def create_table_(name: str) -> bool:
     EXCLUDED = {
         'PREDEFINEDID',
         'VERSION',
@@ -117,7 +117,6 @@ def create_table(name: str) -> bool:
             
             if re.search(r"(RRREF|RTREF)$", col_name):
                 ref_type = 2
-                # Берем дефолтное значение для ссылки из 7-й или 8-й колонки Excel
                 ref_ref = '10000000' if 'Перечисление' in str(row[7]) else (row[8] if pd.notna(row[8]) else '10000000')
             elif (re.search(r"RREF$", col_name) 
                     and col_name != 'IDRREF' 
@@ -169,77 +168,149 @@ def create_table(name: str) -> bool:
         
     sql_statement += "\n);"
     print(sql_statement)
-def create_table_(name: str) -> bool:
-    EXCLUDED = {
-        'PREDEFINEDID',
-        'VERSION',
-        }
-    real_name = name[1:].upper()
-    sql_statement = f'''
-        DROP TABLE IF EXISTS {real_name};
-        create table {real_name} (
-    '''
-    
-    df = pd.read_excel('./vcb v1.xlsx', 
-        sheet_name='fields',
-        header=None)
-    result = df[df[3] == name]
-    
-    if not result.empty:
-        lines = []
-        idx = []
-        for _, row in result.iterrows():
-            col_name = row[4].upper()[1:]
-            if col_name in EXCLUDED: 
-                continue
-            col_name_pure_ = re.search(r"^FLD\d+", col_name)
-            col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
-            if re.search(r"(RRREF|RTREF)$", col_name):
-                ref_type = 2
-            elif (re.search(r"RREF$", col_name) 
-                    and col_name != 'IDRREF' 
-                    and 'PARENT' not in col_name):
-                ref_type = 1
-                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else row[8]            
-            elif col_name == 'IDRREF':
-                ref_type = 3
-                ref_ref = row[0]
 
-            elif 'PARENT' in col_name:
-                ref_type = 4
-                ref_ref = row[0]
-            else: 
-                ref_type = 0
-                ref_ref = ''
-            data_type = str(row[10]).strip().lower()
-            p1 = int(float(row[11])) if pd.notna(row[11]) else None
-            if p1 == -1:
-                p1 = 'max'
-            p2 = int(float(row[12])) if pd.notna(row[12]) else None
-            if data_type.startswith(('decimal', 'numeric')):
-                args_str = f"{p1}, {p2}"
-            else:
-                args_str = f"{p1}"
-            # skip TYPE (common, binary(1) field)
-            if 'TYPE' in col_name: continue
-            # lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
-            if ref_type == 1 :
-                lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\t{col_name_pure}RRREF\tbinary(16) not null")
-            if ref_type == 3 :
-                lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\tIDRREF\tbinary(16) not null")
-            if ref_type == 4:
-                lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
-            if ref_type == 0:
-                lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
-        lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF)')
+def create_ref(name: str) -> bool:
+    try:
+        conn_strings = get_conn_strings()
+        EXCLUDED = {
+            'PREDEFINEDID',
+            'VERSION',
+            }
+        real_name = name[1:].upper()
+        sql_select_statement = 'SELECT '
+        sql_insert_statement = f'insert {real_name} ('
+        sql_create_statement = f'''
+            DROP TABLE IF EXISTS {real_name};
+            create table {real_name} (
+        '''
+        
+        df = pd.read_excel('./vcb v1.xlsx', 
+            sheet_name='fields',
+            header=None)
+        result = df[df[3] == name]
+        
+        if not result.empty:
+            source = ' values ('
+            lines = []
+            idx = []
+            select_lines = []
+            insert_lines = []
+            spec_idx = set()
+            for _, row in result.iterrows():
+                col_name = row[4].upper()[1:]
+                
+                if col_name in EXCLUDED: continue 
+                if 'TYPE' not in col_name: select_lines.append(f'\n\t{row[4]}') 
+                col_name_pure_ = re.search(r"^FLD\d+", col_name)
+                col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
+                if re.search(r"(RRREF|RTREF)$", col_name):
+                    ref_type = 2
+                    spec_idx.add(col_name_pure)
+                elif (re.search(r"RREF$", col_name) 
+                        and col_name != 'IDRREF' 
+                        and 'PARENT' not in col_name):
+                    ref_type = 1
+                    ref_ref = '10000000' if 'Перечисление' in str(row[7]) else row[8]
+                elif col_name == 'IDRREF':
+                    ref_type = 3
+                    ref_ref = row[0]
 
-        sql_statement += ",\n".join(lines)    
-    sql_statement += "\n);"
-    print(sql_statement)
-    return True
+                elif 'PARENT' in col_name:
+                    ref_type = 4
+                    ref_ref = row[0]
+                else: 
+                    ref_type = 0
+                    ref_ref = ''
+                data_type = str(row[10]).strip().lower()
+                p1 = int(float(row[11])) if pd.notna(row[11]) else None
+                if p1 == -1:
+                    p1 = 'max'
+                p2 = int(float(row[12])) if pd.notna(row[12]) else None
+                p3 = int(float(row[13])) if pd.notna(row[13]) else None
+                if data_type.startswith(('decimal', 'numeric')):
+                    args_str = f"({p2}, {p3})"
+                else:
+                    args_str = f"({p1})"
+                args_isnull = f' not null' if row[14] == 0 else ''
+                # skip TYPE (common, binary(1) field)
+                if 'TYPE' in col_name: continue
+                source += '?, '   
+                if ref_type == 1 :
+                    lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref}{args_isnull}")
+                    lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
+                    insert_lines.append(f"\t{col_name_pure}RRREF")
+                    idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
+                                ON {real_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                if ref_type == 3 :
+                    lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
+                    lines.append(f"\tIDRREF\tbinary(16) not null")
+                    # insert_lines.append(f"\tIDTREF")
+                    insert_lines.append(f"\tIDRREF")
+                if ref_type == 4:
+                    lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
+                    lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
+                    # insert_lines.append(f"\tPARENTIDRTREF")
+                    insert_lines.append(f"\tPARENTIDRRREF")
+                    idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
+                                    ON {real_name} (PARENTIDRTREF, PARENTIDRRREF);''')
+
+                if ref_type in [0, 2]:
+                    match = re.search(r'_(.*)$', col_name)
+                    cname = col_name_pure + (match.group(1) if match else "")
+                    lines.append(f"\t{cname}  \t{data_type} {args_str}")
+                    insert_lines.append(f"\t{cname}")
+                    # source += '?, '
+            for item in spec_idx:
+                idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
+                            ON {real_name} ({item}RTREF, {item}RRREF);''')
+            lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
+            
+        sql_create_statement += ',\n'.join(lines)    
+        sql_create_statement += '\n\n' + '\n'.join(idx)
+        sql_select_statement += ','.join(select_lines) +f'\nfrom {name}'
+        sql_insert_statement += '\n,'.join(insert_lines) + ') ' + source 
+        sql_insert_statement = sql_insert_statement[:-2] + ')'
+        print(sql_create_statement)
+        print('before sql')
+        # return True
+        try:
+            try:
+                src_connection = pyodbc.connect(conn_strings['src_1cb'])
+            except Exception as e:
+                print(f'connect: {e}')
+            dst_connection = pyodbc.connect(conn_strings['dst'])
+            dst_connection.autocommit = False 
+            source_cursor = src_connection.cursor()
+            create_cursor = dst_connection.cursor()
+            insert_cursor = dst_connection.cursor()
+            insert_cursor.fast_executemany = True
+            try:
+                create_cursor.execute(sql_create_statement)
+            except Exception as e:
+                print(f'source {e}')
+            dst_connection.commit()
+            try:
+                source_cursor.execute(sql_select_statement)
+            
+                for chunk in get_data_chunks(source_cursor, 5000):
+                        insert_cursor.executemany(sql_insert_statement, chunk)
+            except Exception as e:
+                print(f'internal: {e}')
+            print('before commit')
+            dst_connection.commit()
+            source_cursor.close()
+        except pyodbc.Error as e:
+            print(f'odbc exception: {e}')
+            dst_connection.rollback()
+        finally:
+            src_connection.close()
+            dst_connection.close()
+        return True
+    except Exception as e:
+        print('stage: create table')
+        print(f'Exception: {e}')
+        return False 
+
 def get_next_id(max_bytes: bytes) -> bytes:
     if not max_bytes:
         current_int = 0
