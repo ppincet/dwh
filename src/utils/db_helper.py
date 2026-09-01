@@ -5,42 +5,6 @@ import pandas as pd
 import re
 import csv
 # from sqlalchemy import create_engine, Table, MetaData
-SQL_SERVER_TO_PG_MAP = {
-    "bigint": "BIGINT",
-    "binary": "BYTEA",
-    "bit": "BOOLEAN",
-    "char": "CHAR",
-    "date": "DATE",
-    "datetime": "TIMESTAMP",
-    "datetime2": "TIMESTAMP",
-    "datetimeoffset": "TIMESTAMP WITH TIME ZONE",
-    "decimal": "DECIMAL",
-    "float": "DOUBLE PRECISION",
-    "geography": "GEOGRAPHY",
-    "geometry": "GEOMETRY",
-    "hierarchyid": "TEXT",
-    "image": "BYTEA",
-    "int": "INTEGER",
-    "money": "NUMERIC(19,4)",
-    "nchar": "CHAR",
-    "ntext": "TEXT",
-    "numeric": "NUMERIC",
-    "nvarchar": "VARCHAR",
-    "real": "REAL",
-    "smalldatetime": "TIMESTAMP(0)",
-    "smallint": "SMALLINT",
-    "smallmoney": "NUMERIC(10,4)",
-    "sql_variant": "TEXT",
-    "sysname": "VARCHAR(128)",
-    "text": "TEXT",
-    "time": "TIME",
-    "timestamp": "BYTEA",  # rowversion
-    "tinyint": "SMALLINT",
-    "uniqueidentifier": "UUID",
-    "varbinary": "BYTEA",
-    "varchar": "VARCHAR",
-    "xml": "XML",
-}
 
 def get_conn_strings(): 
     params = {
@@ -83,93 +47,8 @@ def get_data_chunks(cursor, batch_size=5000):
         yield rows 
 
 
-# def upload_ref(name):
 
-def create_table_(name: str) -> bool:
-    EXCLUDED = {
-        'PREDEFINEDID',
-        'VERSION',
-    }
-    real_name = name[1:].upper()
-    sql_statement = f'''
-        DROP TABLE IF EXISTS {real_name};
-        create table {real_name} (
-    '''
-    
-    df = pd.read_excel('./vcb v1.xlsx', 
-        sheet_name='fields',
-        header=None)
-    result = df[df[3] == name]
-    
-    if not result.empty:
-        lines = []
-        for _, row in result.iterrows():
-            col_name = row[4].upper()[1:]
-            if col_name in EXCLUDED: 
-                continue
-            
-            # Пропускаем вторую часть ссылки (RRREF), так как мы обрабатываем их парами
-            if col_name.endswith('RRREF'):
-                continue
-
-            col_name_pure_ = re.search(r"^FLD\d+", col_name)
-            col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
-            
-            if re.search(r"(RRREF|RTREF)$", col_name):
-                ref_type = 2
-                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else (row[8] if pd.notna(row[8]) else '10000000')
-            elif (re.search(r"RREF$", col_name) 
-                    and col_name != 'IDRREF' 
-                    and 'PARENT' not in col_name):
-                ref_type = 1
-                ref_ref = '10000000' if 'Перечисление' in str(row[7]) else (row[8] if pd.notna(row[8]) else '10000000')
-            elif col_name == 'IDRREF':
-                ref_type = 3
-                ref_ref = row[0]
-            elif 'PARENT' in col_name:
-                ref_type = 4
-                ref_ref = row[0]
-            else: 
-                ref_type = 0
-                ref_ref = ''
-                
-            data_type = str(row[10]).strip().lower()
-            p1 = int(float(row[11])) if pd.notna(row[11]) else None
-            if p1 == -1:
-                p1 = 'max'
-            p2 = int(float(row[12])) if pd.notna(row[12]) else None
-            
-            if data_type.startswith(('decimal', 'numeric')):
-                args_str = f"{p1}, {p2}"
-            else:
-                args_str = f"{p1}"
-                
-            # skip TYPE (common, binary(1) field)
-            if 'TYPE' in col_name: 
-                continue
-                
-            # Обработка типов полей
-            if ref_type in (1, 2):
-                # Очищаем суффиксы RTREF/RRREF, чтобы получить чистое имя поля для пары
-                base_col = re.sub(r'(RTREF|RRREF)$', '', col_name)
-                lines.append(f"\t{base_col}RTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\t{base_col}RRREF\tbinary(16) not null")
-            elif ref_type == 3:
-                lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\tIDRREF\tbinary(16) not null")
-            elif ref_type == 4:
-                lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
-                lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
-            elif ref_type == 0:
-                lines.append(f"\t{col_name_pure} \t{data_type} ({args_str})")
-                
-        lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF)')
-        sql_statement += ",\n".join(lines)    
-        
-    sql_statement += "\n);"
-    print(sql_statement)
-
-def create_ref(name: str) -> bool:
+def create_ref(name: str, view_name: str = 'noview') -> bool:
     try:
         conn_strings = get_conn_strings()
         EXCLUDED = {
@@ -183,26 +62,35 @@ def create_ref(name: str) -> bool:
             DROP TABLE IF EXISTS {real_name};
             create table {real_name} (
         '''
-        
+        sql_view_create_statement = f'create view {view_name} as \n select \n\t'
         df = pd.read_excel('./vcb v1.xlsx', 
             sheet_name='fields',
             header=None)
         result = df[df[3] == name]
         
         if not result.empty:
-            source = ' values ('
+            src_cnt = 0
             lines = []
             idx = []
             select_lines = []
             insert_lines = []
+            view_select_lines = []
+            view_join_lines = []
             spec_idx = set()
             for _, row in result.iterrows():
                 col_name = row[4].upper()[1:]
                 
                 if col_name in EXCLUDED: continue 
                 if 'TYPE' not in col_name: select_lines.append(f'\n\t{row[4]}') 
-                col_name_pure_ = re.search(r"^FLD\d+", col_name)
-                col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
+                # col_name_pure_ = re.search(r"^FLD\d+", col_name)
+                # col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
+                match = re.match(r"(FLD(\d+))", col_name)
+                if match:
+                    col_name_pure, field_n = match.groups()
+                else:
+                    col_name_pure = col_name
+                    field_n = None
+                col_name_field_n = re.search(r"d+", col_name)
                 if re.search(r"(RRREF|RTREF)$", col_name):
                     ref_type = 2
                     spec_idx.add(col_name_pure)
@@ -223,8 +111,7 @@ def create_ref(name: str) -> bool:
                     ref_ref = ''
                 data_type = str(row[10]).strip().lower()
                 p1 = int(float(row[11])) if pd.notna(row[11]) else None
-                if p1 == -1:
-                    p1 = 'max'
+                if p1 == -1: p1 = 'max'
                 p2 = int(float(row[12])) if pd.notna(row[12]) else None
                 p3 = int(float(row[13])) if pd.notna(row[13]) else None
                 if data_type.startswith(('decimal', 'numeric')):
@@ -232,25 +119,27 @@ def create_ref(name: str) -> bool:
                 else:
                     args_str = f"({p1})"
                 args_isnull = f' not null' if row[14] == 0 else ''
+                #field_number = 
                 # skip TYPE (common, binary(1) field)
                 if 'TYPE' in col_name: continue
-                source += '?, '   
+                src_cnt += 1
                 if ref_type == 1 :
                     lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref}{args_isnull}")
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
+                    view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                 ON {real_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
-                    # insert_lines.append(f"\tIDTREF")
                     insert_lines.append(f"\tIDRREF")
+                    view_join_lines.append(f'inner join ZSUBKONTO zid on zid.Z_TYPE = ref.IDTREF and zid.Z_REF = ref.IDRREF')
                 if ref_type == 4:
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
-                    # insert_lines.append(f"\tPARENTIDRTREF")
                     insert_lines.append(f"\tPARENTIDRRREF")
+                    view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                     ON {real_name} (PARENTIDRTREF, PARENTIDRRREF);''')
 
@@ -259,7 +148,6 @@ def create_ref(name: str) -> bool:
                     cname = col_name_pure + (match.group(1) if match else "")
                     lines.append(f"\t{cname}  \t{data_type} {args_str}")
                     insert_lines.append(f"\t{cname}")
-                    # source += '?, '
             for item in spec_idx:
                 idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {real_name} ({item}RTREF, {item}RRREF);''')
@@ -268,35 +156,26 @@ def create_ref(name: str) -> bool:
         sql_create_statement += ',\n'.join(lines)    
         sql_create_statement += '\n\n' + '\n'.join(idx)
         sql_select_statement += ','.join(select_lines) +f'\nfrom {name}'
-        sql_insert_statement += '\n,'.join(insert_lines) + ') ' + source 
-        sql_insert_statement = sql_insert_statement[:-2] + ')'
+        sql_view_create_statement += '\n'.join(view_join_lines)
+        sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
         print(sql_create_statement)
-        print('before sql')
-        # return True
+        print(sql_select_statement)
+        print(sql_insert_statement)
+        print(sql_view_create_statement)
+        return True
         try:
-            try:
-                src_connection = pyodbc.connect(conn_strings['src_1cb'])
-            except Exception as e:
-                print(f'connect: {e}')
+            src_connection = pyodbc.connect(conn_strings['src_1cb'])
             dst_connection = pyodbc.connect(conn_strings['dst'])
             dst_connection.autocommit = False 
             source_cursor = src_connection.cursor()
             create_cursor = dst_connection.cursor()
             insert_cursor = dst_connection.cursor()
             insert_cursor.fast_executemany = True
-            try:
-                create_cursor.execute(sql_create_statement)
-            except Exception as e:
-                print(f'source {e}')
+            create_cursor.execute(sql_create_statement)
             dst_connection.commit()
-            try:
-                source_cursor.execute(sql_select_statement)
-            
-                for chunk in get_data_chunks(source_cursor, 5000):
-                        insert_cursor.executemany(sql_insert_statement, chunk)
-            except Exception as e:
-                print(f'internal: {e}')
-            print('before commit')
+            source_cursor.execute(sql_select_statement)
+            for chunk in get_data_chunks(source_cursor, 5000):
+                insert_cursor.executemany(sql_insert_statement, chunk)
             dst_connection.commit()
             source_cursor.close()
         except pyodbc.Error as e:
