@@ -123,13 +123,15 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                 
                 # skip TYPE (common, binary(1) field)
                 if 'TYPE' in col_name: continue
+                alias = row[15] if pd.notna(row[15]) else ''
                 src_cnt += 1
                 if ref_type == 1 :
                     lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref}{args_isnull}")
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
                     if not aliases_only or pd.notna(row[15]):
-                        view_select_lines.append(f'z{field_n}.ID {row[15]}' if row[14] == 1 else f'isnull(z{field_n}.ID, -1) {row[15]}')
+                        # alias = row[15] if pd.notna(row[15]) else '---'
+                        view_select_lines.append(f'\tz{field_n}.ID {alias}' if row[14] == 0 else f'isnull(z{field_n}.ID, 0) {alias}')
                         view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                 ON {real_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
@@ -143,7 +145,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
                     insert_lines.append(f"\tPARENTIDRRREF")
-                    view_select_lines.append(f'isnull(zpid.ID, -1) {row[15]}')
+                    view_select_lines.append(f'\tisnull(zpid.ID, 0) {row[15]}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                     ON {real_name} (PARENTIDRTREF, PARENTIDRRREF);''')
@@ -152,10 +154,10 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                     
                     match = re.search(r'_(.*)$', col_name)
                     cname = col_name_pure + (match.group(1) if match else "")
-                    lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str}")
+                    lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str} {args_isnull}")
                     insert_lines.append(f"\t{cname}")
                     if not aliases_only or pd.notna(row[15]):
-                        view_select_lines.append(f"{cname} {row[15]}" if row[14] == 1 else f"isnull({cname}, {'''' if 'char' in data_type else 0}) {row[15]}")
+                        view_select_lines.append(f"\t{cname} {row[15]}" if row[14] == 0 else f"\tisnull({cname}, {'""' if 'char' in data_type else 0}) {row[15]}")
                     # if data_type.startswith
                     # view_select_lines.append()
                 
@@ -167,7 +169,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         sql_create_statement += ',\n'.join(lines)    
         sql_create_statement += '\n\n' + '\n'.join(idx)
         sql_select_statement += ','.join(select_lines) +f'\nfrom {name}'
-        sql_view_create_statement += ',\n'.join(view_select_lines) + '\n'.join(view_join_lines)
+        sql_view_create_statement += ',\n'.join(view_select_lines) + '\n' + '\n'.join(view_join_lines)
         sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
         print(sql_create_statement)
         print(sql_select_statement)

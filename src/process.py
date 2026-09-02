@@ -101,7 +101,7 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
         print(f'{datetime.datetime.now()} : start create refs')
         print(content)
         for k, v in content.items():
-            if k is None: skip
+            if k is None: continue
             db_helper.create_ref(f'_Reference{k}', 
                 v if v is not None else f'VREFERENCE{k}',
                 aliases_only)
