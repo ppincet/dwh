@@ -2,8 +2,10 @@
 # from config import settings
 import pyodbc
 import typer
-from utils import db_helper
+# from utils import db_helper
 import process
+from typing import Optional
+from itertools import zip_longest
 
 
 app = typer.Typer(
@@ -27,20 +29,40 @@ def daily(log_type: str = typer.Option(
 def init(log_type: str = typer.Option(
         "full",
         "--log-type",
-        help="Log type. Options: full, medium, successfull",
+        help = "Log type. Options: full, medium, successfull",
     ),
     mode: str = typer.Option(
-        "daily", "--mode", help="Start mode. Options: daily, spec"
+        "daily", "--mode", help = "Start mode. Options: daily, spec"
     ),
+    ref_list: Optional[str] = typer.Option(
+        None,
+        "--ref-list",
+        help = "Comma-separated list of references (e.g. 15,35,90)",
+    ),
+    view_list: Optional[str] = typer.Option(
+        None,
+        "--view-list",
+        help = "Comma-separated list of views names (e.g. NOVIEW, SPEC)",
+    ),
+    aliases_only: bool = typer.Option(
+        False,
+        "--aliases-only",
+        help="creates view if set",
+    ),
+    
 ):
     '''
         system init
     '''
-    db_helper.create_ref('_Reference32')
+    refs = []
+    views = []
+    if ref_list:
+        refs = [item.strip() for item in ref_list.split(",") if item.strip()]
+    if view_list:
+        views = [item.strip() for item in view_list.split(",") if item.strip()]
+    content = dict(zip_longest(refs, views, fillvalue=None))
+    process.create_refs(content, aliases_only)
     print('done')
-    # db_helper.populate_enums()
-
-    #process.init_subkonto()
 @app.command()
 def upd():
     '''

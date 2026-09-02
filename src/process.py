@@ -4,6 +4,7 @@ import csv
 import psycopg2
 #from config import settings
 from utils import db_helper
+from typing import List, Dict, Optional
 
 def get_ds_core(step, src, s_statement_file, i_statement):
     print(f'{datetime.datetime.now()} : start {step}')
@@ -95,21 +96,15 @@ def init_subkonto():
             
     print(f'{datetime.datetime.now()} : done init skonto')
 
-def create_refs():
-    print(f'{datetime.datetime.now()} : start create refs')
-    conn_strings = db_helper.get_conn_strings()
+def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
     try:
-        src_connection = pyodbc.connect(conn_strings['src'])
-        dst_connection = pyodbc.connect(conn_strings['dst'])
-        cursor = src_connection.cursor()
-        cursor.execute(db_helper.get_sql_statements('get_tables_w_fields.sql')[0])
-        current_row = cursor.fetchone()[0]
-
-        for row in cursor.fetchall():
-            if row[0] != current_row[0]:
-                print('---------------')
-                current_row = row
-            print(row)
+        print(f'{datetime.datetime.now()} : start create refs')
+        print(content)
+        for k, v in content.items():
+            if k is None: skip
+            db_helper.create_ref(f'_Reference{k}', 
+                v if v is not None else f'VREFERENCE{k}',
+                aliases_only)
     except Exception as e:
         print(f'fatal : {e}')
     print(f'{datetime.datetime.now()} : done create refs')

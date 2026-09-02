@@ -44,11 +44,11 @@ def get_data_chunks(cursor, batch_size=5000):
         rows = cursor.fetchmany(batch_size)
         if not rows:
             break
-        yield rows 
+        yield rows
 
 
-
-def create_ref(name: str, view_name: str = 'noview') -> bool:
+def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
+    print(f'{name}:{view_name}')
     try:
         conn_strings = get_conn_strings()
         EXCLUDED = {
@@ -62,7 +62,7 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
             DROP TABLE IF EXISTS {real_name};
             create table {real_name} (
         '''
-        sql_view_create_statement = f'create view {view_name} as \n select \n\t'
+        sql_view_create_statement = f'drop view {view_name} if exists; create view {view_name} as \n select \n\t'
         df = pd.read_excel('./vcb v1.xlsx', 
             sheet_name='fields',
             header=None)
@@ -78,12 +78,14 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
             view_join_lines = []
             spec_idx = set()
             for _, row in result.iterrows():
-                col_name = row[4].upper()[1:]
+                data_type = str(row[10]).strip().lower() 
                 
+                col_name = row[4].upper()[1:]
                 if col_name in EXCLUDED: continue 
-                if 'TYPE' not in col_name: select_lines.append(f'\n\t{row[4]}') 
-                # col_name_pure_ = re.search(r"^FLD\d+", col_name)
-                # col_name_pure = col_name_pure_.group(0) if col_name_pure_ else col_name
+                if 'TYPE' not in col_name: 
+                    if data_type == 'binary':
+                        select_lines.append(f'\n\tcast(cast({row[4]} as int) as char(1)) {col_name}' if data_type == 'binary' and row[11] == 1 else f'\n\t{row[4]}') 
+               
                 match = re.match(r"(FLD(\d+))", col_name)
                 if match:
                     col_name_pure, field_n = match.groups()
@@ -109,7 +111,6 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
                 else: 
                     ref_type = 0
                     ref_ref = ''
-                data_type = str(row[10]).strip().lower()
                 p1 = int(float(row[11])) if pd.notna(row[11]) else None
                 if p1 == -1: p1 = 'max'
                 p2 = int(float(row[12])) if pd.notna(row[12]) else None
@@ -119,7 +120,7 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
                 else:
                     args_str = f"({p1})"
                 args_isnull = f' not null' if row[14] == 0 else ''
-                #field_number = 
+                
                 # skip TYPE (common, binary(1) field)
                 if 'TYPE' in col_name: continue
                 src_cnt += 1
@@ -127,27 +128,37 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
                     lines.append(f"\t{col_name_pure}RTREF\tbinary(4) default 0x{ref_ref}{args_isnull}")
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
-                    view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
+                    if not aliases_only or pd.notna(row[15]):
+                        view_select_lines.append(f'z{field_n}.ID {row[15]}' if row[14] == 1 else f'isnull(z{field_n}.ID, -1) {row[15]}')
+                        view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                 ON {real_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
                     insert_lines.append(f"\tIDRREF")
+                    view_select_lines.append(f'zid.ID {row[15]}')
                     view_join_lines.append(f'inner join ZSUBKONTO zid on zid.Z_TYPE = ref.IDTREF and zid.Z_REF = ref.IDRREF')
                 if ref_type == 4:
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
                     insert_lines.append(f"\tPARENTIDRRREF")
+                    view_select_lines.append(f'isnull(zpid.ID, -1) {row[15]}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
                                     ON {real_name} (PARENTIDRTREF, PARENTIDRRREF);''')
 
                 if ref_type in [0, 2]:
+                    
                     match = re.search(r'_(.*)$', col_name)
                     cname = col_name_pure + (match.group(1) if match else "")
-                    lines.append(f"\t{cname}  \t{data_type} {args_str}")
+                    lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str}")
                     insert_lines.append(f"\t{cname}")
+                    if not aliases_only or pd.notna(row[15]):
+                        view_select_lines.append(f"{cname} {row[15]}" if row[14] == 1 else f"isnull({cname}, {'''' if 'char' in data_type else 0}) {row[15]}")
+                    # if data_type.startswith
+                    # view_select_lines.append()
+                
             for item in spec_idx:
                 idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {real_name} ({item}RTREF, {item}RRREF);''')
@@ -156,7 +167,7 @@ def create_ref(name: str, view_name: str = 'noview') -> bool:
         sql_create_statement += ',\n'.join(lines)    
         sql_create_statement += '\n\n' + '\n'.join(idx)
         sql_select_statement += ','.join(select_lines) +f'\nfrom {name}'
-        sql_view_create_statement += '\n'.join(view_join_lines)
+        sql_view_create_statement += ',\n'.join(view_select_lines) + '\n'.join(view_join_lines)
         sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
         print(sql_create_statement)
         print(sql_select_statement)
@@ -248,7 +259,6 @@ def populate_enums():
     
 def read_csv_chunks(file_path, chunk_size=200):
     with open(file_path, mode='r', encoding='utf-8') as f:
-        # Указываем разделитель ';'
         reader = csv.DictReader(f, delimiter=';')
         chunk = []
         
@@ -257,7 +267,6 @@ def read_csv_chunks(file_path, chunk_size=200):
                 'ZREF': convert_hex_to_bytes(row.get('ZREF')),
                 'ZSYN': row.get('ZSYN'),
                 'ZDESCR': row.get('ZDESCR')
-                # 'ZTYPE' не берем, если в БД срабатывает DEFAULT
             }
             chunk.append(processed_row)
             if len(chunk) == chunk_size:
@@ -266,18 +275,24 @@ def read_csv_chunks(file_path, chunk_size=200):
         if chunk:
             yield chunk
 
-    # ... (здесь ваше создание engine) ...
-
-
     metadata = MetaData()
     zenum_table = Table('ZENUM', metadata, autoload_with=engine)
-
     try:
         with engine.begin() as connection:
             for chunk in read_csv_chunks('./enums.csv', chunk_size=200):
                 connection.execute(zenum_table.insert(), chunk)
-                
-        print("Все данные успешно загружены порциями без Pandas!")
-
     except Exception as e:
-        print(f"Произошла ошибка, всё откачено: {e}")
+        print(f"Exception: {e}")
+
+def register_refs(refs: list[str]) -> None:
+    try:
+        connection  = pyodbc.connect(get_conn_strings['dst'])
+        cursor = connection.cursor()
+        insert_statement = 'insert REFS_REG values (?)'
+        data = [(ref,) for ref in refs]
+        cursor.execute(insert_statement, data)
+        connection.commit()
+    except Exception as e:
+        print(f'Exception:{e}')
+    finally:
+        if connection is not None: connection.close()
