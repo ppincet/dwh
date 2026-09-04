@@ -102,9 +102,16 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
         print(content)
         for k, v in content.items():
             if k is None: continue
-            db_helper.create_ref(f'_Reference{k}', 
-                v if v is not None else f'VREFERENCE{k}',
+            db_helper.create_ref(f'{k}', 
+                v if v is not None else f'VREF{k}',
                 aliases_only)
     except Exception as e:
         print(f'fatal : {e}')
     print(f'{datetime.datetime.now()} : done create refs')
+def get_fact_table():
+    # period_from = datetime.datetime
+    # period_to = 
+    print(f'{datetime.datetime.now()}: start fact table')
+    db_helper.get_fact_table()
+    print(f'{datetime.datetime.now()}: done fact table')
+

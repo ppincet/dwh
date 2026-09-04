@@ -49,6 +49,10 @@ def init(log_type: str = typer.Option(
         "--aliases-only",
         help="creates view if set",
     ),
+    period: str = typer.Option(
+        "--period",
+        help="period_from(optional)  - period_to (optional)"
+    )
     
 ):
     '''
@@ -61,7 +65,12 @@ def init(log_type: str = typer.Option(
     if view_list:
         views = [item.strip() for item in view_list.split(",") if item.strip()]
     content = dict(zip_longest(refs, views, fillvalue=None))
+    # 2do
+    # create non REF
+    # create view only
     process.create_refs(content, aliases_only)
+    #process.get_fact_table()
+
     print('done')
 @app.command()
 def upd():

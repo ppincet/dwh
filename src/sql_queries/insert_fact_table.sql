@@ -1,0 +1,25 @@
+insert into #ZFACT (
+    ZPERIOD,
+    ZBDACCT,
+    ZBDACCR,
+    ZAMNT,
+    ZSK00T,
+    ZSK00R,
+    ZSK01T,
+    ZSK01R,
+    ZSK02T,
+    ZSK02R,
+    ZSK03T,
+    ZSK03R,
+    ZSK10T,
+    ZSK10R,
+    ZSK11T,
+    ZSK11R,
+    ZSK12T,
+    ZSK12R,
+    ZSK13T,
+    ZSK13R,
+    ZSK20T,
+    ZSK20R
+)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

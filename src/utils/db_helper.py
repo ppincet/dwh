@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import re
 import csv
+import datetime
 # from sqlalchemy import create_engine, Table, MetaData
 
 def get_conn_strings(): 
@@ -53,20 +54,26 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         conn_strings = get_conn_strings()
         EXCLUDED = {
             'PREDEFINEDID',
-            'VERSION',
+          
             }
-        real_name = name[1:].upper()
+        real_name = f'_Reference{name}'
+        stage_stock_name = f'ZSREF{name}'
+        stage_buffer_name = f'ZBREF{name}'
         sql_select_statement = 'SELECT '
-        sql_insert_statement = f'insert {real_name} ('
-        sql_create_statement = f'''
-            DROP TABLE IF EXISTS {real_name};
-            create table {real_name} (
+        sql_insert_statement = f'insert {stage_stock_name} ('
+        sql_create_buffer_statement = f'''
+            DROP TABLE IF EXISTS {stage_stock_name};
+            create table {stage_buffer_name} (
         '''
-        sql_view_create_statement = f'drop view {view_name} if exists; create view {view_name} as \n select \n\t'
+        sql_create_statement = f'''
+            DROP TABLE IF EXISTS {stage_stock_name};
+            create table {stage_stock_name} (
+        '''
+        sql_view_create_statement = f'drop view {view_name} if exists;\n create view {view_name} as \n select \n\t'
         df = pd.read_excel('./vcb v1.xlsx', 
             sheet_name='fields',
             header=None)
-        result = df[df[3] == name]
+        result = df[df[3] == real_name]
         
         if not result.empty:
             src_cnt = 0
@@ -117,6 +124,8 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                 p3 = int(float(row[13])) if pd.notna(row[13]) else None
                 if data_type.startswith(('decimal', 'numeric')):
                     args_str = f"({p2}, {p3})"
+                elif data_type.startswith('timestamp'):
+                    args_str = ''
                 else:
                     args_str = f"({p1})"
                 args_isnull = f' not null' if row[14] == 0 else ''
@@ -134,21 +143,21 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                         view_select_lines.append(f'\tz{field_n}.ID {alias}' if row[14] == 0 else f'isnull(z{field_n}.ID, 0) {alias}')
                         view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
-                                ON {real_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                                ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
                     insert_lines.append(f"\tIDRREF")
-                    view_select_lines.append(f'zid.ID {row[15]}')
+                    view_select_lines.append(f'zid.ID {alias}')
                     view_join_lines.append(f'inner join ZSUBKONTO zid on zid.Z_TYPE = ref.IDTREF and zid.Z_REF = ref.IDRREF')
                 if ref_type == 4:
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
                     insert_lines.append(f"\tPARENTIDRRREF")
-                    view_select_lines.append(f'\tisnull(zpid.ID, 0) {row[15]}')
+                    view_select_lines.append(f'\tisnull(zpid.ID, 0) {alias}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
-                                    ON {real_name} (PARENTIDRTREF, PARENTIDRRREF);''')
+                                    ON {stage_stock_name} (PARENTIDRTREF, PARENTIDRRREF);''')
 
                 if ref_type in [0, 2]:
                     
@@ -157,25 +166,29 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                     lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str} {args_isnull}")
                     insert_lines.append(f"\t{cname}")
                     if not aliases_only or pd.notna(row[15]):
-                        view_select_lines.append(f"\t{cname} {row[15]}" if row[14] == 0 else f"\tisnull({cname}, {'""' if 'char' in data_type else 0}) {row[15]}")
+                        view_select_lines.append(f"\t{cname} {alias}" if row[14] == 0 else f"\tisnull({cname}, {'""' if 'char' in data_type else 0}) {alias}")
                     # if data_type.startswith
                     # view_select_lines.append()
                 
             for item in spec_idx:
                 idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
-                            ON {real_name} ({item}RTREF, {item}RRREF);''')
-            lines.append(f'\tCONSTRAINT PK_{real_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
+                            ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
+            lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
             
         sql_create_statement += ',\n'.join(lines)    
         sql_create_statement += '\n\n' + '\n'.join(idx)
-        sql_select_statement += ','.join(select_lines) +f'\nfrom {name}'
+        sql_create_buffer_statement += ',\n'.join(lines)    
+        sql_create_buffer_statement += '\n\n' + '\n'.join(idx)
+        sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
         sql_view_create_statement += ',\n'.join(view_select_lines) + '\n' + '\n'.join(view_join_lines)
         sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
         print(sql_create_statement)
+        print(sql_create_buffer_statement)
         print(sql_select_statement)
         print(sql_insert_statement)
         print(sql_view_create_statement)
-        return True
+        
+        # return True
         try:
             src_connection = pyodbc.connect(conn_strings['src_1cb'])
             dst_connection = pyodbc.connect(conn_strings['dst'])
@@ -184,13 +197,17 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
             create_cursor = dst_connection.cursor()
             insert_cursor = dst_connection.cursor()
             insert_cursor.fast_executemany = True
+            
             create_cursor.execute(sql_create_statement)
             dst_connection.commit()
-            source_cursor.execute(sql_select_statement)
-            for chunk in get_data_chunks(source_cursor, 5000):
-                insert_cursor.executemany(sql_insert_statement, chunk)
-            dst_connection.commit()
-            source_cursor.close()
+            try:
+                source_cursor.execute(sql_select_statement)
+                for chunk in get_data_chunks(source_cursor, 5000):
+                    insert_cursor.executemany(sql_insert_statement, chunk)
+                dst_connection.commit()
+                source_cursor.close()
+            except Exception as e:
+                print(f'inner{e}')
         except pyodbc.Error as e:
             print(f'odbc exception: {e}')
             dst_connection.rollback()
@@ -203,24 +220,24 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         print(f'Exception: {e}')
         return False 
 
-def get_next_id(max_bytes: bytes) -> bytes:
-    if not max_bytes:
-        current_int = 0
-    else:
-        current_int = int.from_bytes(max_bytes, byteorder='big')
+# def get_next_id(max_bytes: bytes) -> bytes:
+#     if not max_bytes:
+#         current_int = 0
+#     else:
+#         current_int = int.from_bytes(max_bytes, byteorder='big')
     
-    next_int = current_int + 1
-    return next_int.to_bytes(16, byteorder='big')
-'''
-    converts hex from ms sql like 0x into bytes for SQLAlchemy
-'''
-def convert_hex_to_bytes(val: str) -> bytes:
-    if pd.isna(val):
-        return None
-    val_str = str(val).strip()
-    if val_str.startswith('0x') or val_str.startswith('0X'):
-        val_str = val_str[2:]
-    return bytes.fromhex(val_str)
+#     next_int = current_int + 1
+#     return next_int.to_bytes(16, byteorder='big')
+# '''
+#     converts hex from ms sql like 0x into bytes for SQLAlchemy
+# '''
+# def convert_hex_to_bytes(val: str) -> bytes:
+#     if pd.isna(val):
+#         return None
+#     val_str = str(val).strip()
+#     if val_str.startswith('0x') or val_str.startswith('0X'):
+#         val_str = val_str[2:]
+#     return bytes.fromhex(val_str)
 
 # initial and replication 
 def populate_enums():   
@@ -286,15 +303,40 @@ def read_csv_chunks(file_path, chunk_size=200):
     except Exception as e:
         print(f"Exception: {e}")
 
-def register_refs(refs: list[str]) -> None:
+# 2do : add period
+def get_fact_table(period_from :str, period_to :str) -> None:
     try:
-        connection  = pyodbc.connect(get_conn_strings['dst'])
-        cursor = connection.cursor()
-        insert_statement = 'insert REFS_REG values (?)'
-        data = [(ref,) for ref in refs]
-        cursor.execute(insert_statement, data)
-        connection.commit()
+        conn_strings = get_conn_strings()
+        src_conn = pyodbc.connect(conn_strings['src_1cb'])
+        dst_conn = pyodbc.connect(conn_strings['dst'])
+        dst_conn.autocommit = False
+        src_cursor = src_conn.cursor()
+        src_cursor.fast_executemany = True
+        dst_cursor = dst_conn.cursor()
+        dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
+        src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](prod_from, period_to))
+        chunkn = 0
+        for chunk in get_data_chunks(src_cursor, 5000):
+            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
+        dst_cursor.execute("""
+            CREATE NONCLUSTERED INDEX IX_ZFACT_Base 
+            ON #ZFACT (ZPERIOD, ZBDACCT, ZBDACCR);
+
+            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group1 
+            ON #ZFACT (ZSK00T, ZSK00R, ZSK01T, ZSK01R, ZSK02T, ZSK02R);
+
+            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group2 
+            ON #ZFACT (ZSK03T, ZSK03R, ZSK10T, ZSK10R, ZSK11T, ZSK11R);
+    
+            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group3 
+            ON #ZFACT (ZSK12T, ZSK12R, ZSK13T, ZSK13R, ZSK20T, ZSK20R);
+        """)
+        dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
+        dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
+        dst_cursor.commit()
     except Exception as e:
-        print(f'Exception:{e}')
+        dst_cursor.rollback()
+        print(f'exception {e}')
     finally:
-        if connection is not None: connection.close()
+        if src_conn: src_conn.close()
+        if src_conn: dst_conn.close()
