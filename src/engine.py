@@ -13,17 +13,26 @@ app = typer.Typer(
 )
 
 @app.command()
-def daily(log_type: str = typer.Option(
+def manual(period: str = typer.Option(
+        "--period",
+        help="period_from(optional)  - period_to (optional)"
+    ),
+        is_odinass: bool = typer.Option(
+            False,
+            '--is-odinass',
+            help = 'odinass date'
+        )):
+    process.get_fact_table(period, is_odinass)
+
+@app.command()
+def daily(log_type: Optional[str] = typer.Option(
         "full",
         "--log-type",
         help="Log type. Options: full, medium, successfull",
-    ),):
+    ),
+    ):
+    process.start_etl()
 
-
-    for k,i in db_helper.get_conn_strings().items():
-        print(f'who:{k}')
-        print(f'item:{i}')
-    print(f'log: {log_type}')
 
 @app.command()
 def init(log_type: str = typer.Option(
@@ -68,7 +77,7 @@ def init(log_type: str = typer.Option(
     # 2do
     # create non REF
     # create view only
-    process.create_refs(content, aliases_only)
+    # process.create_refs(content, aliases_only)
     #process.get_fact_table()
 
     print('done')

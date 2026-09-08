@@ -4,9 +4,12 @@ from pathlib import Path
 import pandas as pd
 import re
 import csv
-import datetime
+# import datetime
+import time
 # from sqlalchemy import create_engine, Table, MetaData
 
+TASK_NAME = 'ZGETFACT'
+BATCH_SIZE = 5000
 def get_conn_strings(): 
     params = {
         'src_1cb' :{
@@ -38,7 +41,7 @@ def get_sql_statements(file_name):
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
         sql_script = f.read()
-    return [cmd.strip() for cmd in sql_script.split(';') if cmd.strip()]
+    return [f'{cmd.strip()};' for cmd in sql_script.split(';') if cmd.strip()]
 
 def get_data_chunks(cursor, batch_size=5000):
     while True:
@@ -48,21 +51,19 @@ def get_data_chunks(cursor, batch_size=5000):
         yield rows
 
 
-def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
-    print(f'{name}:{view_name}')
+def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, str]:
+    EXCLUDED = {
+                'PREDEFINEDID',
+              
+                }
     try:
-        conn_strings = get_conn_strings()
-        EXCLUDED = {
-            'PREDEFINEDID',
-          
-            }
         real_name = f'_Reference{name}'
         stage_stock_name = f'ZSREF{name}'
         stage_buffer_name = f'ZBREF{name}'
         sql_select_statement = 'SELECT '
-        sql_insert_statement = f'insert {stage_stock_name} ('
+        sql_insert_statement = f'insert #tempo ('
         sql_create_buffer_statement = f'''
-            DROP TABLE IF EXISTS {stage_stock_name};
+            DROP TABLE IF EXISTS {stage_buffer_name};
             create table {stage_buffer_name} (
         '''
         sql_create_statement = f'''
@@ -90,9 +91,12 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                 col_name = row[4].upper()[1:]
                 if col_name in EXCLUDED: continue 
                 if 'TYPE' not in col_name: 
-                    if data_type == 'binary':
-                        select_lines.append(f'\n\tcast(cast({row[4]} as int) as char(1)) {col_name}' if data_type == 'binary' and row[11] == 1 else f'\n\t{row[4]}') 
-               
+                    # if data_type == 'binary':
+                    if data_type == 'binary' and row[11] == 1: fld = f'\n\tcast(cast({row[4]} as int) as char(1)) {col_name}'
+                    elif data_type == 'timestamp': fld = f'convert(varchar(18), convert(binary(8), {row[4]}), 1) {col_name}'
+                    else: fld = row[4]
+                    select_lines.append(f'\n\t{fld}') 
+                
                 match = re.match(r"(FLD(\d+))", col_name)
                 if match:
                     col_name_pure, field_n = match.groups()
@@ -125,6 +129,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                 if data_type.startswith(('decimal', 'numeric')):
                     args_str = f"({p2}, {p3})"
                 elif data_type.startswith('timestamp'):
+                    data_type = 'char(18)'
                     args_str = ''
                 else:
                     args_str = f"({p1})"
@@ -175,20 +180,31 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
                             ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
             lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
             
-        sql_create_statement += ',\n'.join(lines)    
-        sql_create_statement += '\n\n' + '\n'.join(idx)
-        sql_create_buffer_statement += ',\n'.join(lines)    
-        sql_create_buffer_statement += '\n\n' + '\n'.join(idx)
-        sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
-        sql_view_create_statement += ',\n'.join(view_select_lines) + '\n' + '\n'.join(view_join_lines)
-        sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
-        print(sql_create_statement)
-        print(sql_create_buffer_statement)
-        print(sql_select_statement)
-        print(sql_insert_statement)
-        print(sql_view_create_statement)
-        
-        # return True
+            sql_create_statement += ',\n'.join(lines)    
+            sql_create_statement += '\n\n' + '\n'.join(idx)
+            sql_create_buffer_statement += ',\n'.join(lines)    
+            sql_create_buffer_statement += '\n\n' + '\n'.join(idx)
+            sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
+            sql_view_create_statement += ',\n'.join(view_select_lines) + f'\nfrom {stage_stock_name} ref\n' + '\n'.join(view_join_lines)
+            sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
+    except Exception as e:
+            print(f'exception: {e}')
+    return {
+        'sql_create': sql_create_statement,
+        'sql_buffer_create': sql_create_buffer_statement,
+        'sql_select': sql_select_statement,
+        'sql_view_create': sql_view_create_statement,
+        'sql_insert': sql_insert_statement,
+    }
+def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
+   
+    try:
+        statements = create_schema(name, view_name, aliases_only)
+        conn_strings = get_conn_strings()
+        for k, statement in statements.items():
+            print(statement)
+        return True
+       
         try:
             src_connection = pyodbc.connect(conn_strings['src_1cb'])
             dst_connection = pyodbc.connect(conn_strings['dst'])
@@ -198,12 +214,14 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
             insert_cursor = dst_connection.cursor()
             insert_cursor.fast_executemany = True
             
-            create_cursor.execute(sql_create_statement)
+            create_cursor.execute(statements['sql_create'])
+            create_cursor.execute(statements['sql_buffer_create'])
+            create_cursor.execute(statements['sql_view_create'])
             dst_connection.commit()
             try:
-                source_cursor.execute(sql_select_statement)
+                source_cursor.execute(statements['sql_select'])
                 for chunk in get_data_chunks(source_cursor, 5000):
-                    insert_cursor.executemany(sql_insert_statement, chunk)
+                    insert_cursor.executemany(statements['sql_insert'], chunk)
                 dst_connection.commit()
                 source_cursor.close()
             except Exception as e:
@@ -214,7 +232,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         finally:
             src_connection.close()
             dst_connection.close()
-        return True
+        # return True
     except Exception as e:
         print('stage: create table')
         print(f'Exception: {e}')
@@ -304,7 +322,7 @@ def read_csv_chunks(file_path, chunk_size=200):
         print(f"Exception: {e}")
 
 # 2do : add period
-def get_fact_table(period_from :str, period_to :str) -> None:
+def get_fact_table_(period_from :str, period_to :str) -> None:
     try:
         conn_strings = get_conn_strings()
         src_conn = pyodbc.connect(conn_strings['src_1cb'])
@@ -314,9 +332,9 @@ def get_fact_table(period_from :str, period_to :str) -> None:
         src_cursor.fast_executemany = True
         dst_cursor = dst_conn.cursor()
         dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
-        src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](prod_from, period_to))
+        src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
         chunkn = 0
-        for chunk in get_data_chunks(src_cursor, 5000):
+        for chunk in get_data_chunks(src_cursor, BATCH_SIZE):
             dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
         dst_cursor.execute("""
             CREATE NONCLUSTERED INDEX IX_ZFACT_Base 
@@ -340,3 +358,112 @@ def get_fact_table(period_from :str, period_to :str) -> None:
     finally:
         if src_conn: src_conn.close()
         if src_conn: dst_conn.close()
+
+def get_or_create_checkpoint(dst_cursor, 
+                             dst_conn, 
+                             task_name, 
+                             start_window, 
+                             end_window):
+    dst_cursor.execute(get_sql_statements('get_cp.sql')[0], 
+                       (task_name,))
+    row = dst_cursor.fetchone()
+
+    if row and row[0] == start_window and row[1] == end_window:
+        # logging.info("--- ОБНАРУЖЕН СБОЙ ПРОШЛОГО ЗАПУСКА. ВОЗОБНОВЛЕНИЕ ВЫГРУЗКИ ---")
+        # logging.info(f"Точка останова: _Period={row[2]}, Rows={row[6]:,}")
+         return {
+            "last_period": row[2],
+            "last_tref": row[3],
+            "last_rref": row[4],
+            "last_lineno": row[5],
+            "total_rows": row[6],
+            "is_resume": True
+        }    
+    dst_cursor.execute("truncate table ZFACT;") # fact table
+    dst_cursor.execute("truncate table ZFACTSTG;") # batch table
+    init_tref = b'\x00' * 4
+    init_rref = b'\x00' * 16
+    print('phase : truncate, upsert log')  
+    print(get_sql_statements('upsert_log.sql')[0])
+    dst_cursor.execute(get_sql_statements('upsert_log.sql')[0], (
+        task_name, start_window, end_window, start_window, init_tref, init_rref, -1,
+        task_name, start_window, end_window, start_window, init_tref, init_rref, -1
+    ))
+    dst_conn.commit()
+
+    return {
+        "last_period": start_window,
+        "last_tref": init_tref,
+        "last_rref": init_rref,
+        "last_lineno": -1,
+        "total_rows": 0,
+        "is_resume": False
+    }
+# wo nolock (pagination)
+def get_fact_table(period_from :str, period_to :str) -> None:
+    print(f'from : {period_from} to: {period_to}')
+    # return True
+    try:
+        conn_strings = get_conn_strings()
+        src_conn = pyodbc.connect(conn_strings['src_1cb'])
+        dst_conn = pyodbc.connect(conn_strings['dst'])
+        dst_conn.autocommit = False
+        src_cursor = src_conn.cursor()
+        src_cursor.fast_executemany = True
+        dst_cursor = dst_conn.cursor()
+        print(get_or_create_checkpoint(dst_cursor, 
+                             dst_conn, 
+                             TASK_NAME, 
+                             period_from, 
+                             period_to))
+        #return 
+        batch_num = 0
+        start_time = time.time()
+
+        while True:
+            batch_num += 1
+            params = (
+                period_to,
+                last_period, 
+                last_period, last_tref, 
+                last_period, last_tref, last_rref, 
+                last_period, last_tref, last_rref, last_lineno
+            )
+            
+            src_cursor.execute(sql_select_batch, params)
+            rows = src_cursor.fetchall()
+            
+            if not rows:
+                # Финал выгрузки — проставляем SUCCESS
+                # update_checkpoint(dst_cursor, dst_conn, TASK_NAME, last_period, last_tref, last_rref, last_lineno, total_rows, status='SUCCESS')
+                # logging.info("УСПЕХ: Все данные выгружены!")
+                break
+            
+            # Вставка в Staging
+            dst_cursor.fast_executemany = True
+            dst_cursor.executemany(sql_insert_stg, rows)
+            
+          
+            last_row = rows[-1]
+            last_period, last_tref, last_rref, last_lineno = last_row[0], last_row[1], last_row[2], last_row[3]
+            total_rows += len(rows)
+            
+            
+            # update_checkpoint(dst_cursor, dst_conn, TASK_NAME, last_period, last_tref, last_rref, last_lineno, total_rows, status='IN_PROGRESS')
+        return            
+        dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
+        src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
+        chunkn = 0
+        for chunk in get_data_chunks(src_cursor, BATCH_SIZE):
+            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
+        
+        dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
+        dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
+        dst_cursor.commit()
+    except Exception as e:
+        dst_cursor.rollback()
+        print(f'exception {e}')
+    finally:
+        if src_conn: src_conn.close()
+        if src_conn: dst_conn.close()
+

@@ -1,0 +1,11 @@
+select 
+    ZSTARTWND,
+    ZENDWND,
+    ZLSTPERIOD,
+    ZLSTTREF,
+    ZLSTRREF,
+    ZLSTLN,
+    ZTOTROWS
+from ZETLLOG
+where ZTASKNAME = ? 
+    and ZSTATUS = 'IN_PROGRESS'

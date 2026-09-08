@@ -1,106 +1,89 @@
- select
- DATEADD(year, -2000, rg.[_period]) z_period,
+select top (?)
+    rg._period z_period,
     0x50000000 z_bk_dt_type,
-    rg._AccountDtRRef  z_bk_dt_ref,
+    rg._accountdtrref z_bk_dt_ref,
     rg._fld617 z_amnt,
-    dt_sk.SK00T ZSK00T,
-    dt_sk.SK00R ZSK00R,
-    dt_sk.SK01T ZSK01T,
-    dt_sk.SK01R ZSK01R,
-    dt_sk.SK02T ZSK02T,
-    dt_sk.SK02R ZSK02R,
-    dt_sk.SK03T ZSK03T,
-    dt_sk.SK03R ZSK03R,
-    dt_sk.SK10T ZSK10T,
-    dt_sk.SK10R ZSK10R,
-    dt_sk.SK11T ZSK11T,
-    dt_sk.SK11R ZSK11R,
-    dt_sk.SK12T ZSK12T,
-    dt_sk.SK12R ZSK12R,
-    dt_sk.SK13T ZSK13T,
-    dt_sk.SK13R ZSK13R,
-    dt_sk.SK20T ZSK20T,
-    dt_sk.SK20R ZSK20R
+    rg._recordertref,
+    rg._recorderrref,
+    rg._lineno,
 
+    dt_sk.sk00t ZSK00T,
+    dt_sk.sk00r ZSK00R,
+    dt_sk.sk01t ZSK01T,
+    dt_sk.sk01r ZSK01R,
+    dt_sk.sk02t ZSK02T,
+    dt_sk.sk02r ZSK02R,
+    dt_sk.sk03t ZSK03T,
+    dt_sk.sk03r ZSK03R,
+    dt_sk.sk10t ZSK10T,
+    dt_sk.sk10r ZSK10R,
+    dt_sk.sk11t ZSK11T,
+    dt_sk.sk11r ZSK11R,
+    dt_sk.sk12t ZSK12T,
+    dt_sk.sk12r ZSK12R,
+    dt_sk.sk13t ZSK13T,
+    dt_sk.sk13r ZSK13R,
+    dt_sk.sk20t ZSK20T,
+    dt_sk.sk20r ZSK20R
 
-FROM _AccRg614 rg WITH (NOLOCK)
-JOIN _documentjournal13332 journ WITH (NOLOCK)
-    ON journ.[_documenttref] = rg.[_RecorderTRef]
-    AND journ.[_documentrref] = rg.[_RecorderRRef]
-JOIN _acc9 deb WITH (NOLOCK)
-    ON deb.[_idrref] = rg._AccountDtRRef
-JOIN _acc9 cred WITH (NOLOCK)
-    ON cred.[_idrref] = rg._AccountCtRRef
-OUTER APPLY (
-    SELECT 
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x00000020 THEN v.t end), 0) SK00T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x00000020 THEN v.r end), 0) SK00R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x0000006F THEN v.t end), 0) SK01T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x0000006F THEN v.r end), 0) SK01R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x00000085 THEN v.t end), 0) SK02T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x00000085 THEN v.r end), 0) SK02R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x000000A6 THEN v.t end), 0) SK03T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x000000A6 THEN v.r end), 0) SK03R,
+from dbo._accrg614 rg 
+join dbo._acc9 deb 
+    on deb._idrref = rg._accountdtrref
 
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000016 THEN v.t end), 0) SK10T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000016 THEN v.r end), 0) SK10R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000057 THEN v.t end), 0) SK11T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000057 THEN v.r end), 0) SK11R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000071 THEN v.t end), 0) SK12T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x00000071 THEN v.r end), 0) SK12R,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x0000008A THEN v.t end), 0) SK13T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 1 and v.t = 0x0000008A THEN v.r end), 0) SK13R,
+outer apply (
+    select 
+        max(case when aeddt._keyfield = 0 and v.t = 0x00000020 then v.t end) sk00t,
+        max(case when aeddt._keyfield = 0 and v.t = 0x00000020 then v.r end) sk00r,
+        max(case when aeddt._keyfield = 0 and v.t = 0x0000006f then v.t end) sk01t,
+        max(case when aeddt._keyfield = 0 and v.t = 0x0000006f then v.r end) sk01r,
+        max(case when aeddt._keyfield = 0 and v.t = 0x00000085 then v.t end) sk02t,
+        max(case when aeddt._keyfield = 0 and v.t = 0x00000085 then v.r end) sk02r,
+        max(case when aeddt._keyfield = 0 and v.t = 0x000000a6 then v.t end) sk03t,
+        max(case when aeddt._keyfield = 0 and v.t = 0x000000a6 then v.r end) sk03r,
+
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000016 then v.t end) sk10t,
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000016 then v.r end) sk10r,
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000057 then v.t end) sk11t,
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000057 then v.r end) sk11r,
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000071 then v.t end) sk12t,
+        max(case when aeddt._keyfield = 1 and v.t = 0x00000071 then v.r end) sk12r,
+        max(case when aeddt._keyfield = 1 and v.t = 0x0000008a then v.t end) sk13t,
+        max(case when aeddt._keyfield = 1 and v.t = 0x0000008a then v.r end) sk13r,
         
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x0000001B THEN v.t end), 0) SK20T,
-        isnull(MAX(CASE WHEN aeddt._keyfield = 0 and v.t = 0x0000001B THEN v.r end), 0) SK20R
-        
-        
-    FROM _accrged639 ed WITH (NOLOCK)
-    INNER JOIN _Acc9_ExtDim604 aeddt WITH (NOLOCK) 
-        ON aeddt._Acc9_IDRRef = rg._AccountDtRRef 
-        AND ed._KindRRef = aeddt._DimKindRRef
-    CROSS APPLY (
-        SELECT 
-             ed._Value_RTRef t,
-             ed._Value_RRRef r
-        
+        max(case when aeddt._keyfield = 0 and v.t = 0x0000001b then v.t end) sk20t,
+        max(case when aeddt._keyfield = 0 and v.t = 0x0000001b then v.r end) sk20r
+
+    from dbo._accrged639 ed 
+    inner join dbo._acc9_extdim604 aeddt 
+        on aeddt._acc9_idrref = rg._accountdtrref 
+       and ed._kindrref = aeddt._dimkindrref
+    cross apply (
+        select 
+            ed._value_rtref t,
+            ed._value_rrref r
     ) v
-    WHERE ed.[_period] = rg.[_period]
-      AND ed.[_RecorderTRef] = rg._RecorderTRef
-      AND ed.[_RecorderRRef] = rg._RecorderRRef
-      AND ed.[_LineNo] = rg._LineNo
+    where ed._period = rg._period
+      and ed._recordertref = rg._recordertref
+      and ed._recorderrref = rg._recorderrref
+      and ed._lineno = rg._lineno
 ) dt_sk
 
---OUTER APPLY (
---    SELECT 
---        isnull(MAX(CASE WHEN aedct._keyfield = 0 THEN v.t END), -1) sk0_t,
---        isnull(MAX(CASE WHEN aedct._keyfield = 0 THEN v.r END), -1) sk0_r,
---        isnull(MAX(CASE WHEN aedct._keyfield = 1 THEN v.t END), -1) sk1_t,
---        isnull(MAX(CASE WHEN aedct._keyfield = 1 THEN v.r END), -1) sk1_r,
---        isnull(MAX(CASE WHEN aedct._keyfield = 2 THEN v.t END), -1) sk2_t,
---        isnull(MAX(CASE WHEN aedct._keyfield = 2 THEN v.r END), -1) sk2_r,
---        isnull(MAX(CASE WHEN aedct._keyfield = 3 THEN v.t END), -1) sk3_t,
---        isnull(MAX(CASE WHEN aedct._keyfield = 3 THEN v.r END), -1) sk3_r
---    FROM _accrged639 ed WITH (NOLOCK)
---    INNER JOIN _Acc9_ExtDim604 aedct WITH (NOLOCK) 
---        ON aedct._Acc9_IDRRef = rg._AccountCtRRef 
---        AND ed._KindRRef = aedct._DimKindRRef
---    CROSS APPLY (
---        SELECT 
---             ed._Value_RTRef t, 
---             ed._Value_RRRef r
---    ) v
---    WHERE ed.[_period] = rg.[_period]
---      AND ed.[_RecorderTRef] = rg._RecorderTRef
---      AND ed.[_RecorderRRef] = rg._RecorderRRef
---      AND ed.[_LineNo] = rg._LineNo
---) ct_sk
+where 
+    rg._period < ? -- must be start of next day
+    and (
+        (rg._period > ?) 
+        or (rg._period = ? and rg._recordertref > ?)
+        or (rg._period = ? and rg._recordertref = ? and rg._recorderrref > ?)
+        or (rg._period = ? and rg._recordertref = ? and rg._recorderrref = ? and rg._lineno > ?)
+    )
+    and deb._code in (
+        '20.1', '68.3.1', '73.2', '44.2', '44.3', 
+        '90.10.1', '90.10.11', '90.7.1', '90.7.2', 
+        '91.4.1', '91.4.11', '91.1.1'
+    )
 
-WHERE rg._period BETWEEN ? AND ?
-  --AND ed._correspond IN (0, 1)
-  AND deb._code IN (
-      '20.1', '68.3.1', '73.2', '44.2', '44.3', 
-      '90.10.1', '90.10.11', '90.7.1', '90.7.2', 
-      '91.4.1', 
-      '91.4.11', '91.1.1'
-  )
+order by 
+    rg._period asc,
+    rg._recordertref asc,
+    rg._recorderrref asc,
+    rg._lineno asc;

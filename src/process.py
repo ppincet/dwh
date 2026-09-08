@@ -1,48 +1,7 @@
 import datetime
-import pyodbc
-import csv
-import psycopg2
-#from config import settings
-from utils import db_helper
+from utils import db_helper, common
 from typing import List, Dict, Optional
 
-def get_ds_core(step, src, s_statement_file, i_statement):
-    print(f'{datetime.datetime.now()} : start {step}')
-    print(f'{datetime.datetime.now()} : {step} done')
-    conn_strings = db_helper.get_conn_strings()
-    src_connection = None
-    dst_connection = None
-    try:
-        src_connection = pyodbc.connect(conn_strings[src])
-        dst_connection = pyodbc.connect(conn_strings['dst'])
-        dst_connection.autocommit = False 
-        dst_cursor = dst_connection.cursor()
-        dst_cursor.fast_executemany = True     
-        src_cursor = src_connection.cursor()
-        src_cursor.execute(db_helper.get_sql_statements(s_statement)[0])
-
-
-    except Exception as e:
-        print(f'fatal : {e}')
-
-def get_fact():
-    print(f'{datetime.datetime.now()} : start getting fact table')
-    conn_strings = db_helper.get_conn_strings()
-    src_connection = None
-    dst_connection = None
-    try:
-        src_connection = pyodbc.connect(conn_strings['src_1cb'])
-        dst_connection = pyodbc.connect(conn_strings['dst'])
-        dst_connection.autocommit = False 
-        dst_cursor = dst_connection.cursor()
-        dst_cursor.fast_executemany = True 
-        
-        src_cursor = src_connection.cursor()
-        src_cursor.execute(db_helper.get_sql_statements('get_fact_main.sql')[0])
-    except Exception as fact_exc:
-        print(f'fatal : {fact_exc}')
-
-    print(f'{datetime.datetime.now()} : done')
 def init_subkonto():
     print(f'{datetime.datetime.now()} : start init skonto')
     conn_strings = db_helper.get_conn_strings()
@@ -108,10 +67,14 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
     except Exception as e:
         print(f'fatal : {e}')
     print(f'{datetime.datetime.now()} : done create refs')
-def get_fact_table():
-    # period_from = datetime.datetime
-    # period_to = 
-    print(f'{datetime.datetime.now()}: start fact table')
-    db_helper.get_fact_table()
-    print(f'{datetime.datetime.now()}: done fact table')
+
+def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
+    period_range = (
+        common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
+    )
+    db_helper.get_fact_table(*period_range)
+def start_etl():
+    get_fact_table()
+    
+    
 
