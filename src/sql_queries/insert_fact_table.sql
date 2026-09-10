@@ -1,4 +1,4 @@
-insert into #ZFACT (
+insert into ZFACTSTG (
     ZPERIOD,
     ZBDACCT,
     ZBDACCR,

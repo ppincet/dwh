@@ -1,4 +1,4 @@
-update ZETLLOG set        
+update ZETLLOG       
 set
     ZLSTPERIOD = ?,
     ZLSTTREF = ?,

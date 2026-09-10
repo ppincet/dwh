@@ -37,9 +37,16 @@ def get_next_id(max_bytes: bytes) -> bytes:
 def get_rolling_window_standard(is_odinass: bool):
     today = datetime.date.today()
     first_of_this_month = today.replace(day=1)
-    last_of_prev_month = first_of_this_month - datetime.timedelta(days=1)
-    start_date = datetime.datetime.combine(last_of_prev_month.replace(day=1), datetime.time.min)
-    end_date = datetime.datetime.combine(today + datetime.timedelta(days=1), datetime.time.min)
+    first_of_prev_month_date = (
+        first_of_this_month - datetime.timedelta(days=1)
+    ).replace(day=1)
+    start_date = datetime.datetime.combine(
+        first_of_prev_month_date, datetime.time.min
+    )
+    end_date = datetime.datetime.combine(
+        today + datetime.timedelta(days=1), datetime.time.min
+    )
+
     if is_odinass:
         start_date = start_date.replace(year=start_date.year + 2000)
         end_date = end_date.replace(year=end_date.year + 2000)

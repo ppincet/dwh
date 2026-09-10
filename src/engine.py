@@ -79,7 +79,7 @@ def init(log_type: str = typer.Option(
     # create view only
     # process.create_refs(content, aliases_only)
     #process.get_fact_table()
-
+    process.do_init(content, aliases_only)
     print('done')
 @app.command()
 def upd():

@@ -10,6 +10,15 @@ import time
 
 TASK_NAME = 'ZGETFACT'
 BATCH_SIZE = 5000
+cp_struct = {
+    "task_name": None,
+    "last_period": None,
+    "last_tref": None,
+    "last_rref": None,
+    "last_lineno": None,
+    "total_rows": None,
+    "status": None
+}
 def get_conn_strings(): 
     params = {
         'src_1cb' :{
@@ -70,6 +79,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             DROP TABLE IF EXISTS {stage_stock_name};
             create table {stage_stock_name} (
         '''
+        view_name = view_name.upper()
         sql_view_create_statement = f'drop view {view_name} if exists;\n create view {view_name} as \n select \n\t'
         df = pd.read_excel('./vcb v1.xlsx', 
             sheet_name='fields',
@@ -196,66 +206,60 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         'sql_view_create': sql_view_create_statement,
         'sql_insert': sql_insert_statement,
     }
+def update_ref(src_cursor: pyodbc.Cursor, dst_cursor: pyodbc.Cursor, ref_name: str,statements: dict[str,str]) -> None:
+    try:
+        stmnt = 'TRUNCATE TABLE Z{0}REF{1}'.format
+        dst_cursor.execute(stmnt('S', ref_name))
+        src_cursor.execute(statements['sql_select'])
+        for chunk in get_data_chunks(src_cursor, 5000):
+            dst_cursor.executemany(statements['sql_insert'], chunk)
+        print('after chunking')
+        dst_cursor.execute(stmnt('B', ref_name))
+        dst_cursor.execute(f'''insert into ZBREF{ref_name}
+                            select * from #TEMPO
+                            ''')
+    except Exception as e:
+        print(f'update ref exception {e}')
+        raise
+
+def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
+    try:
+        dst_cursor.execute(statement)
+    except Exception as e:
+        print(f'create view exception: {e}')
+        raise
+
 def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
-   
+    status = True
     try:
         statements = create_schema(name, view_name, aliases_only)
         conn_strings = get_conn_strings()
-        for k, statement in statements.items():
-            print(statement)
-        return True
-       
-        try:
-            src_connection = pyodbc.connect(conn_strings['src_1cb'])
-            dst_connection = pyodbc.connect(conn_strings['dst'])
-            dst_connection.autocommit = False 
-            source_cursor = src_connection.cursor()
-            create_cursor = dst_connection.cursor()
-            insert_cursor = dst_connection.cursor()
-            insert_cursor.fast_executemany = True
-            
-            create_cursor.execute(statements['sql_create'])
-            create_cursor.execute(statements['sql_buffer_create'])
-            create_cursor.execute(statements['sql_view_create'])
-            dst_connection.commit()
-            try:
-                source_cursor.execute(statements['sql_select'])
-                for chunk in get_data_chunks(source_cursor, 5000):
-                    insert_cursor.executemany(statements['sql_insert'], chunk)
-                dst_connection.commit()
-                source_cursor.close()
-            except Exception as e:
-                print(f'inner{e}')
-        except pyodbc.Error as e:
-            print(f'odbc exception: {e}')
-            dst_connection.rollback()
-        finally:
-            src_connection.close()
-            dst_connection.close()
-        # return True
-    except Exception as e:
-        print('stage: create table')
-        print(f'Exception: {e}')
-        return False 
+        src_connection = pyodbc.connect(conn_strings['src_1cb'])
+        dst_connection = pyodbc.connect(conn_strings['dst'])
+        dst_connection.autocommit = False 
+        source_cursor = src_connection.cursor()
+        create_cursor = dst_connection.cursor()
+        insert_cursor = dst_connection.cursor()
+        insert_cursor.fast_executemany = True
+        print(statements['sql_create'])
+        print(statements['sql_buffer_create'])
+        create_cursor.execute(statements['sql_create'])
+        create_cursor.execute(statements['sql_buffer_create'])
+        print('before create view')
+        create_view(dst_connection, create_cursor, statements['sql_view_create'])
+        update_ref(source_cursor, insert_cursor, name, statements)
+        dst_connection.commit()
+        source_cursor.close()
+    except pyodbc.Error as e:
+        print(f'create ref  exception: {e}')
+        dst_connection.rollback()
+        status = False
+        raise
+    finally:
+        if src_connection: src_connection.close()
+        if dst_connection: dst_connection.close()
+        return status
 
-# def get_next_id(max_bytes: bytes) -> bytes:
-#     if not max_bytes:
-#         current_int = 0
-#     else:
-#         current_int = int.from_bytes(max_bytes, byteorder='big')
-    
-#     next_int = current_int + 1
-#     return next_int.to_bytes(16, byteorder='big')
-# '''
-#     converts hex from ms sql like 0x into bytes for SQLAlchemy
-# '''
-# def convert_hex_to_bytes(val: str) -> bytes:
-#     if pd.isna(val):
-#         return None
-#     val_str = str(val).strip()
-#     if val_str.startswith('0x') or val_str.startswith('0X'):
-#         val_str = val_str[2:]
-#     return bytes.fromhex(val_str)
 
 # initial and replication 
 def populate_enums():   
@@ -322,6 +326,7 @@ def read_csv_chunks(file_path, chunk_size=200):
         print(f"Exception: {e}")
 
 # 2do : add period
+# !!! deprecated !!!
 def get_fact_table_(period_from :str, period_to :str) -> None:
     try:
         conn_strings = get_conn_strings()
@@ -369,8 +374,7 @@ def get_or_create_checkpoint(dst_cursor,
     row = dst_cursor.fetchone()
 
     if row and row[0] == start_window and row[1] == end_window:
-        # logging.info("--- ОБНАРУЖЕН СБОЙ ПРОШЛОГО ЗАПУСКА. ВОЗОБНОВЛЕНИЕ ВЫГРУЗКИ ---")
-        # logging.info(f"Точка останова: _Period={row[2]}, Rows={row[6]:,}")
+         
          return {
             "last_period": row[2],
             "last_tref": row[3],
@@ -399,9 +403,15 @@ def get_or_create_checkpoint(dst_cursor,
         "total_rows": 0,
         "is_resume": False
     }
+def update_checkpoint(dst_cursor, dst_conn, task_name, last_period, last_tref, last_rref, last_lineno, total_rows, status='IN_PROGRESS'):   
+    dst_cursor.execute(get_sql_statements('checkpoint_upd.sql')[0], 
+                       (last_period, last_tref, last_rref, last_lineno, total_rows, status, task_name))
+    dst_conn.commit()
+
 # wo nolock (pagination)
 def get_fact_table(period_from :str, period_to :str) -> None:
-    print(f'from : {period_from} to: {period_to}')
+    # print(f'from : {period_from} to: {period_to}')
+    upd_cp = cp_struct.clone()
     # return True
     try:
         conn_strings = get_conn_strings()
@@ -411,11 +421,18 @@ def get_fact_table(period_from :str, period_to :str) -> None:
         src_cursor = src_conn.cursor()
         src_cursor.fast_executemany = True
         dst_cursor = dst_conn.cursor()
-        print(get_or_create_checkpoint(dst_cursor, 
-                             dst_conn, 
-                             TASK_NAME, 
-                             period_from, 
-                             period_to))
+        cp = get_or_create_checkpoint(dst_cursor, 
+                                      dst_conn, 
+                                      TASK_NAME, 
+                                      period_from, 
+                                      period_to)
+                
+        last_period = cp["last_period"]
+        last_tref = cp["last_tref"]
+        last_rref = cp["last_rref"]
+        last_lineno = cp["last_lineno"]
+        total_rows = cp["total_rows"]
+        
         #return 
         batch_num = 0
         start_time = time.time()
@@ -423,33 +440,57 @@ def get_fact_table(period_from :str, period_to :str) -> None:
         while True:
             batch_num += 1
             params = (
+                BATCH_SIZE,
+                BATCH_SIZE,
+                last_period,
                 period_to,
+                BATCH_SIZE,
                 last_period, 
-                last_period, last_tref, 
-                last_period, last_tref, last_rref, 
-                last_period, last_tref, last_rref, last_lineno
+                last_tref,
+                BATCH_SIZE,
+                last_period, 
+                last_tref, 
+                last_rref,
+                BATCH_SIZE,
+                last_period, 
+                last_tref, 
+                last_rref, 
+                last_lineno
             )
-            
-            src_cursor.execute(sql_select_batch, params)
+            src_cursor.execute(get_sql_statements('get_fact_main.sql')[0], params)
             rows = src_cursor.fetchall()
-            
             if not rows:
-                # Финал выгрузки — проставляем SUCCESS
-                # update_checkpoint(dst_cursor, dst_conn, TASK_NAME, last_period, last_tref, last_rref, last_lineno, total_rows, status='SUCCESS')
-                # logging.info("УСПЕХ: Все данные выгружены!")
+                update_checkpoint(dst_cursor, 
+                                  dst_conn, 
+                                  TASK_NAME, 
+                                  last_period, 
+                                  last_tref, 
+                                  last_rref, 
+                                  last_lineno, 
+                                  total_rows, 
+                                  status='SUCCESS')
                 break
             
-            # Вставка в Staging
             dst_cursor.fast_executemany = True
-            dst_cursor.executemany(sql_insert_stg, rows)
+            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], 
+                                   [row[:-3] for row in rows])
             
           
             last_row = rows[-1]
-            last_period, last_tref, last_rref, last_lineno = last_row[0], last_row[1], last_row[2], last_row[3]
+            last_period = last_row[0]
+            last_tref, last_rref, last_lineno = last_row[-3:]
             total_rows += len(rows)
             
-            
-            # update_checkpoint(dst_cursor, dst_conn, TASK_NAME, last_period, last_tref, last_rref, last_lineno, total_rows, status='IN_PROGRESS')
+            print('update checkpoint')
+            upd_cp['task_name'] = TASK_NAME, 
+            upd_cp['last_period'] =last_period, 
+            upd_cp['last_tref'] = last_tref, 
+            upd_cp['last_rref'] = last_rref, 
+            upd_cp['last_lineno'] = last_lineno, 
+            upd_cp['total_rows'] = total_rows, 
+            upd_cp['status'] = 'IN_PROGRESS'
+            update_checkpoint(dst_cursor, dst_conn, upd_cp)
+
         return            
         dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
         src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
@@ -466,4 +507,51 @@ def get_fact_table(period_from :str, period_to :str) -> None:
     finally:
         if src_conn: src_conn.close()
         if src_conn: dst_conn.close()
+
+def init_subkonto():
+   
+    conn_strings = get_conn_strings()
+    
+    src_connection = None
+    dst_connection = None
+    try:
+        src_connection = pyodbc.connect(conn_strings['src_1cb'])
+        dst_connection = pyodbc.connect(conn_strings['dst'])
+        dst_connection.autocommit = False 
+        dst_cursor = dst_connection.cursor()
+        dst_cursor.fast_executemany = True 
+        
+        src_cursor = src_connection.cursor()
+        src_cursor.execute(db_helper.get_sql_statements('get_refs.sql')[0])
+        
+        for row in src_cursor.fetchall():
+            skonto_type = f'{int(row[0][10:]):08X}'
+            try:
+                statement = f"""
+                    select 0x{skonto_type} ztype, 
+                         _idrref zref
+                    from [{row[0]}] (nolock)
+                """
+                source_cursor = src_connection.cursor()
+                source_cursor.execute(statement)
+                
+                insert_query = "INSERT INTO Z_SUBKONTO(Z_TYPE, Z_REF) VALUES (?, ?)"
+                
+                for chunk in get_data_chunks(source_cursor, 5000):
+                    dst_cursor.executemany(insert_query, chunk)
+
+                dst_connection.commit()
+                source_cursor.close()    
+            except Exception as table_err:
+                dst_connection.rollback()
+                print(f'error processing {row[0]} (rolled back): {table_err}')
+    except Exception as e:
+        print(f'fatal: {e}')
+    finally:
+        if src_connection:
+            src_connection.close()
+        if dst_connection:
+            dst_connection.close()
+
+
 

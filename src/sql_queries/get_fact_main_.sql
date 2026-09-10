@@ -71,13 +71,14 @@ OUTER APPLY (
       AND ed.[_LineNo] = rg._LineNo
 ) dt_sk
 where 
-    rg._period < ? 
-    AND (
-        (rg._period > ?) 
-        OR (rg._period = ? AND rg._RecorderTRef > ?)
-        OR (rg._period = ? AND rg._RecorderTRef = ? AND rg._RecorderRRef > ?)
-        OR (rg._period = ? AND rg._RecorderTRef = ? AND rg._RecorderRRef = ? AND rg._LineNo > ?)
-    )
+    rg.period between '4026-07-31 23:59:59' and '4026-09-10 00:00:00'
+    -- rg._period < ? 
+    -- AND (
+    --     (rg._period > ?) 
+    --     OR (rg._period = ? AND rg._RecorderTRef > ?)
+    --     OR (rg._period = ? AND rg._RecorderTRef = ? AND rg._RecorderRRef > ?)
+    --     OR (rg._period = ? AND rg._RecorderTRef = ? AND rg._RecorderRRef = ? AND rg._LineNo > ?)
+    -- )
 
     AND deb._code IN (
         '20.1', '68.3.1', '73.2', '44.2', '44.3', 

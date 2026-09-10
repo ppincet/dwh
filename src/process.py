@@ -2,6 +2,7 @@ import datetime
 from utils import db_helper, common
 from typing import List, Dict, Optional
 
+
 def init_subkonto():
     print(f'{datetime.datetime.now()} : start init skonto')
     conn_strings = db_helper.get_conn_strings()
@@ -57,8 +58,6 @@ def init_subkonto():
 
 def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
     try:
-        print(f'{datetime.datetime.now()} : start create refs')
-        print(content)
         for k, v in content.items():
             if k is None: continue
             db_helper.create_ref(f'{k}', 
@@ -73,8 +72,16 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
     )
     db_helper.get_fact_table(*period_range)
-def start_etl():
+def check_updates() -> None:
+    print('check done')
+def start_etl() -> None:
     get_fact_table()
+    check_updates()
+    print(f'done: {datetime.datetime.now()}')
+def do_init(content: dict[str, str], aliases_only: bool) -> None:
+    create_refs(content, aliases_only)
+
+
     
     
 
