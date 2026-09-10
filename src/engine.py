@@ -33,7 +33,14 @@ def daily(log_type: Optional[str] = typer.Option(
     ):
     process.start_etl()
 
-
+@app.command()
+def custom(
+    create_ref: Optional[list[str]] = typer.Option(
+        None,
+        "--create-ref",
+    ),
+):
+    
 @app.command()
 def init(log_type: str = typer.Option(
         "full",

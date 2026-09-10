@@ -89,7 +89,10 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         if not result.empty:
             src_cnt = 0
             lines = []
-            idx = []
+            pk_s = ''
+            pk_b = ''
+            idx_p = []
+            idx_b = []
             select_lines = []
             insert_lines = []
             view_select_lines = []
@@ -157,8 +160,8 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                         # alias = row[15] if pd.notna(row[15]) else '---'
                         view_select_lines.append(f'\tz{field_n}.ID {alias}' if row[14] == 0 else f'isnull(z{field_n}.ID, 0) {alias}')
                         view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
-                    idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
-                                ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                    idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                    idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
@@ -171,8 +174,8 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     insert_lines.append(f"\tPARENTIDRRREF")
                     view_select_lines.append(f'\tisnull(zpid.ID, 0) {alias}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
-                    idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
-                                    ON {stage_stock_name} (PARENTIDRTREF, PARENTIDRRREF);''')
+                    idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} (PARENTIDRTREF, PARENTIDRRREF);''')
+                    idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} (PARENTIDRTREF, PARENTIDRRREF);''')
 
                 if ref_type in [0, 2]:
                     
@@ -186,14 +189,17 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     # view_select_lines.append()
                 
             for item in spec_idx:
-                idx.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
+                print(f'idx item:{item}')
+                idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
-            lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
-            
-            sql_create_statement += ',\n'.join(lines)    
-            sql_create_statement += '\n\n' + '\n'.join(idx)
-            sql_create_buffer_statement += ',\n'.join(lines)    
-            sql_create_buffer_statement += '\n\n' + '\n'.join(idx)
+                idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
+                            ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                
+            # lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
+            pk_s = f'\n\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
+            pk_b = f'\n\tCONSTRAINT PK_{stage_buffer_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
+            sql_create_statement += ',\n'.join(lines) + pk_s + '\n\n' + '\n'.join(idx_p)
+            sql_create_buffer_statement += ',\n'.join(lines)  + pk_b + '\n\n' + '\n'.join(idx_b)
             sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
             sql_view_create_statement += ',\n'.join(view_select_lines) + f'\nfrom {stage_stock_name} ref\n' + '\n'.join(view_join_lines)
             sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
@@ -233,6 +239,9 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
     status = True
     try:
         statements = create_schema(name, view_name, aliases_only)
+        print(statements['sql_create'])
+        print(statements['sql_buffer_create'])
+        return True       
         conn_strings = get_conn_strings()
         src_connection = pyodbc.connect(conn_strings['src_1cb'])
         dst_connection = pyodbc.connect(conn_strings['dst'])
@@ -243,6 +252,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         insert_cursor.fast_executemany = True
         print(statements['sql_create'])
         print(statements['sql_buffer_create'])
+
         create_cursor.execute(statements['sql_create'])
         create_cursor.execute(statements['sql_buffer_create'])
         print('before create view')
@@ -490,7 +500,7 @@ def get_fact_table(period_from :str, period_to :str) -> None:
             upd_cp['total_rows'] = total_rows, 
             upd_cp['status'] = 'IN_PROGRESS'
             update_checkpoint(dst_cursor, dst_conn, upd_cp)
-
+        # это здесь специально!
         return            
         dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
         src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
