@@ -59,6 +59,10 @@ def get_data_chunks(cursor, batch_size=5000):
             break
         yield rows
 
+def execute_sql_script(cursor, statement):
+    commands = [cmd.strip() for cmd in statement.split(';') if cmd.strip()]
+    for command in commands:
+        cursor.execute(command)
 
 def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, str]:
     EXCLUDED = {
@@ -69,18 +73,22 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         real_name = f'_Reference{name}'
         stage_stock_name = f'ZSREF{name}'
         stage_buffer_name = f'ZBREF{name}'
+        tempo_name = f'ZTREF{name}'
         sql_select_statement = 'SELECT '
-        sql_insert_statement = f'insert #tempo ('
+        sql_insert_statement = f'insert {tempo_name} ('
         sql_create_buffer_statement = f'''
-            DROP TABLE IF EXISTS {stage_buffer_name};
+            DROP TABLE IF EXISTS {stage_buffer_name} ;
             create table {stage_buffer_name} (
         '''
         sql_create_statement = f'''
             DROP TABLE IF EXISTS {stage_stock_name};
             create table {stage_stock_name} (
         '''
+        sql_create_tempo_statement = f'''
+            create table {tempo_name} (
+        '''
         view_name = view_name.upper()
-        sql_view_create_statement = f'drop view {view_name} if exists;\n create view {view_name} as \n select \n\t'
+        sql_view_create_statement = f'drop view if exists {view_name};\n create view {view_name} as \n select \n\t'
         df = pd.read_excel('./vcb v1.xlsx', 
             sheet_name='fields',
             header=None)
@@ -157,9 +165,8 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
                     if not aliases_only or pd.notna(row[15]):
-                        # alias = row[15] if pd.notna(row[15]) else '---'
-                        view_select_lines.append(f'\tz{field_n}.ID {alias}' if row[14] == 0 else f'isnull(z{field_n}.ID, 0) {alias}')
-                        view_join_lines.append(f'left join ZSUBKONTO z{field_n} on z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
+                        view_select_lines.append(f'\tisnull(Z{field_n}.ID, 0) {alias if alias else "Z" + field_n + "ID"}')
+                        view_join_lines.append(f'left join ZSUBKONTO Z{field_n} on Z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and Z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                     idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
@@ -172,7 +179,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tPARENTIDRRREF\tbinary(16) not null")
                     insert_lines.append(f"\tPARENTIDRRREF")
-                    view_select_lines.append(f'\tisnull(zpid.ID, 0) {alias}')
+                    view_select_lines.append(f'\tisnull(zpid.ID, 0) {alias if alias else "ZPID"}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} (PARENTIDRTREF, PARENTIDRRREF);''')
                     idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} (PARENTIDRTREF, PARENTIDRRREF);''')
@@ -184,10 +191,9 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str} {args_isnull}")
                     insert_lines.append(f"\t{cname}")
                     if not aliases_only or pd.notna(row[15]):
-                        view_select_lines.append(f"\t{cname} {alias}" if row[14] == 0 else f"\tisnull({cname}, {'""' if 'char' in data_type else 0}) {alias}")
-                    # if data_type.startswith
-                    # view_select_lines.append()
-                
+                        default_val = "''" if 'char' in data_type else 0
+                        col_alias = alias if alias else cname
+                        view_select_lines.append(f"\tisnull({cname}, {default_val}) {col_alias}")
             for item in spec_idx:
                 print(f'idx item:{item}')
                 idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
@@ -198,8 +204,10 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             # lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
             pk_s = f'\n\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
             pk_b = f'\n\tCONSTRAINT PK_{stage_buffer_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
-            sql_create_statement += ',\n'.join(lines) + pk_s + '\n\n' + '\n'.join(idx_p)
-            sql_create_buffer_statement += ',\n'.join(lines)  + pk_b + '\n\n' + '\n'.join(idx_b)
+            pk_t = f'\n\tCONSTRAINT PK_{tempo_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
+            sql_create_statement += ',\n'.join(lines) + '\n' + pk_s + '\n\n' + '\n'.join(idx_p)
+            sql_create_buffer_statement += ',\n'.join(lines) + '\n' + pk_b + '\n\n' + '\n'.join(idx_b)
+            sql_create_tempo_statement += ',\n'.join(lines) + '\n' + pk_t
             sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
             sql_view_create_statement += ',\n'.join(view_select_lines) + f'\nfrom {stage_stock_name} ref\n' + '\n'.join(view_join_lines)
             sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
@@ -208,6 +216,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
     return {
         'sql_create': sql_create_statement,
         'sql_buffer_create': sql_create_buffer_statement,
+        'sql_create_tempo': sql_create_tempo_statement,
         'sql_select': sql_select_statement,
         'sql_view_create': sql_view_create_statement,
         'sql_insert': sql_insert_statement,
@@ -219,18 +228,29 @@ def update_ref(src_cursor: pyodbc.Cursor, dst_cursor: pyodbc.Cursor, ref_name: s
         src_cursor.execute(statements['sql_select'])
         for chunk in get_data_chunks(src_cursor, 5000):
             dst_cursor.executemany(statements['sql_insert'], chunk)
-        print('after chunking')
+        dst_cursor.execute(f'''
+                            insert ZSREF{ref_name}
+                            select t.* 
+                            from ZTREF{ref_name} t
+                            left join ZBREF{ref_name} b
+                            on t.IDRREF = b.IDRREF
+                            where t.VERSION<>b.VERSION
+                            or b.IDRREF is null
+                        ''')
         dst_cursor.execute(stmnt('B', ref_name))
         dst_cursor.execute(f'''insert into ZBREF{ref_name}
-                            select * from #TEMPO
+                            select * from ZTREF{ref_name}
                             ''')
+        dst_cursor.execute(f'drop table ZTREF{ref_name}')
     except Exception as e:
         print(f'update ref exception {e}')
         raise
 
 def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
     try:
-        dst_cursor.execute(statement)
+        print('inside create view')
+        print(statement)
+        execute_sql_script(dst_cursor, statement)
     except Exception as e:
         print(f'create view exception: {e}')
         raise
@@ -238,10 +258,7 @@ def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
 def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
     status = True
     try:
-        statements = create_schema(name, view_name, aliases_only)
-        print(statements['sql_create'])
-        print(statements['sql_buffer_create'])
-        return True       
+        statements = create_schema(name, view_name, aliases_only)      
         conn_strings = get_conn_strings()
         src_connection = pyodbc.connect(conn_strings['src_1cb'])
         dst_connection = pyodbc.connect(conn_strings['dst'])
@@ -249,18 +266,15 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         source_cursor = src_connection.cursor()
         create_cursor = dst_connection.cursor()
         insert_cursor = dst_connection.cursor()
-        insert_cursor.fast_executemany = True
-        print(statements['sql_create'])
-        print(statements['sql_buffer_create'])
-
+        # insert_cursor.fast_executemany = True
         create_cursor.execute(statements['sql_create'])
         create_cursor.execute(statements['sql_buffer_create'])
-        print('before create view')
-        create_view(dst_connection, create_cursor, statements['sql_view_create'])
+        create_cursor.execute(statements['sql_create_tempo'])
+        create_view(create_cursor, statements['sql_view_create'])
         update_ref(source_cursor, insert_cursor, name, statements)
         dst_connection.commit()
         source_cursor.close()
-    except pyodbc.Error as e:
+    except Exception as e:
         print(f'create ref  exception: {e}')
         dst_connection.rollback()
         status = False
@@ -532,7 +546,7 @@ def init_subkonto():
         dst_cursor.fast_executemany = True 
         
         src_cursor = src_connection.cursor()
-        src_cursor.execute(db_helper.get_sql_statements('get_refs.sql')[0])
+        src_cursor.execute(get_sql_statements('get_refs.sql')[0])
         
         for row in src_cursor.fetchall():
             skonto_type = f'{int(row[0][10:]):08X}'
@@ -563,5 +577,58 @@ def init_subkonto():
         if dst_connection:
             dst_connection.close()
 
-
+def create_acc() -> None:
+    try:
+        conn_strings = get_conn_strings()
+        src_connection = pyodbc.connect(conn_strings['src_1cb'])
+        dst_connection = pyodbc.connect(conn_strings['dst'])
+        dst_connection.autocommit = False 
+        source_cursor = src_connection.cursor()
+        create_cursor = dst_connection.cursor()
+        source_cursor.execute('''
+                               SELECT [_IDRRef]
+                                    ,convert(varchar(18), convert(binary(8), [_Version]) ,1) VERSION
+                                    ,cast(cast([_Marked] as int) as char(1)) [Marked]
+                                    ,[_ParentIDRRef]
+                                    ,[_Code]
+                                    ,[_Description]
+                                    ,[_OrderField]
+                                    ,[_Kind]
+                                    ,cast(cast([_OffBalance] as int) as char(1)) Offbalance
+                                    ,[_Fld599]
+                                    ,[_Fld600]
+                                    ,[_Fld601RRef]
+                                    ,cast(cast([_Fld602] as int) as char(1)) [_Fld602]
+                                    ,cast(cast([_Fld603] as int) as char(1)) [_Fld603]
+                                FROM [HSRet].[dbo].[_Acc9]
+                                ''')
+        batch_size = 2000
+        rows = source_cursor.fetchmany(batch_size)
+        create_cursor.executemany('''
+                                    insert ZACC (
+                                        [IDRREF]
+                                        ,[VERSION]
+                                        ,[MARKED]
+                                        ,[PARENTIDRRREF]
+                                        ,[CODE]
+                                        ,[DESCRIPTION]
+                                        ,[ORDERFIELD]
+                                        ,[KIND]
+                                        ,[OFFBALANCE]
+                                        ,[FLD599]
+                                        ,[FLD600]
+                                        ,[FLD601RRREF]
+                                        ,[FLD602]
+                                        ,[FLD603])
+                                        values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                    ''', 
+                                  rows)
+        dst_connection.commit()
+    except Exception as e:
+        src_connection.rollback()
+        print(f'create acc exc:{e}')
+        raise
+    finally:
+        if src_connection: src_connection.close()
+        if dst_connection: dst_connection.close()
 

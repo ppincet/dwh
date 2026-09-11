@@ -63,6 +63,7 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
             db_helper.create_ref(f'{k}', 
                 v if v is not None else f'VREF{k}',
                 aliases_only)
+            print(f'{k} done at {datetime.datetime.now()}')
     except Exception as e:
         print(f'fatal : {e}')
     print(f'{datetime.datetime.now()} : done create refs')
@@ -81,7 +82,9 @@ def start_etl() -> None:
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     create_refs(content, aliases_only)
 
-
+def perform_command(command: str, args: dict[str, str]) -> None:
+    method = getattr(db_helper, command, **args)
+    if callable(method): method(**args)
     
     
 

@@ -1,4 +1,5 @@
 import datetime
+import pandas as pd
 
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:
     date_str = date_str.strip()
@@ -61,3 +62,20 @@ def convert_hex_to_bytes(val: str) -> bytes:
     if val_str.startswith('0x') or val_str.startswith('0X'):
         val_str = val_str[2:]
     return bytes.fromhex(val_str)
+
+
+
+def find_subkontos() -> None:
+    data = {
+        "col": [
+            "Справочник.ПрибылиУбытки",
+            "Перечисление.БазаОборотныхНалогов.Дополнительно", # строка с двумя точками для теста
+            "Справочник.СтавкиУСН"
+        ]
+    }
+    df = pd.DataFrame(data)
+
+    # Извлекаем текст после первой точки до второй точки (или до конца)
+    df['result'] = df['col'].str.extract(r'\.([^.]+)', expand=False)
+
+    print(df)

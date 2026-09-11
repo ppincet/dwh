@@ -33,13 +33,23 @@ def daily(log_type: Optional[str] = typer.Option(
     ):
     process.start_etl()
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def custom(
-    create_ref: Optional[list[str]] = typer.Option(
-        None,
-        "--create-ref",
-    ),
+    ctx: typer.Context,
+    command: str = typer.Option(
+        ..., 
+        "--command", 
+        help="Name of the method in db_helper to execute"
+        ),
 ):
+    args = {}
+    for item in ctx.args:
+        clean_item = item.lstrip("-")
+        if "=" in clean_item:
+            k, v = clean_item.split("=", 1)
+            args[k] = v
+    process.perform_command(command, args)
+    
     
 @app.command()
 def init(log_type: str = typer.Option(
