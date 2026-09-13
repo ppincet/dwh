@@ -1,6 +1,25 @@
 import datetime
 import pandas as pd
+import uuid
 
+def create_session(command: str = "DEFAULT") -> dict:
+    return {
+        "session_id": str(uuid.uuid4()),
+        "command": command,
+        "status": "RUNNING",
+        "start_time": datetime.datetime.now().isoformat(),
+        "end_time": None,
+        "metrics": {},
+        "logs": []
+    }
+
+def add_log(session: dict, step_name: str, message: str, level: str = "INFO") -> None:
+    session["logs"].append({
+        "timestamp": datetime.datetime.now().isoformat(),
+        "level": level,
+        "step_name": step_name,
+        "message": message
+    })
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:
     date_str = date_str.strip()
     parts = [p.strip() for p in date_str.split('-')]
@@ -79,3 +98,81 @@ def find_subkontos() -> None:
     df['result'] = df['col'].str.extract(r'\.([^.]+)', expand=False)
 
     print(df)
+
+import csv
+import re
+
+def determine_level(code):
+    """Определяет уровень вложенности по количеству точек в коде (например, '1.1.1' -> уровень 3)."""
+    if not code:
+        return 1
+    # Считаем точки в коде (убираем хвостовые)
+    clean_code = code.strip('.')
+    if not clean_code:
+        return 1
+    return clean_code.count('.') + 1
+
+def generate_hex_id(index):
+    """Генерирует уникальный 16-байтовый hex-идентификатор формата 0x... для binary(16)."""
+    hex_str = format(index + 1, 'X').zfill(32)
+    return f"0x{hex_str}"
+
+def process_source_file(input_filename, output_filename):
+    rows = []
+    stack = {}
+    
+    try:
+        with open(input_filename, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        print(f"Ошибка: Не найден файл {input_filename}. Создайте его и поместите туда исходные данные.")
+        return
+
+    raw_data = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Парсим строку: ожидаем, что первый токен — код (если есть), остальное — имя.
+        # Пример: "1.1.1. Продажи через интернет-магазин" или просто имя без кода.
+        parts = line.split(maxsplit=1)
+        
+        if len(parts) == 2 and (re.match(r'^\d+(\.\d+)*\.?$', parts[0]) or parts[0].replace('.', '').isdigit()):
+            code = parts[0]
+            name = parts[1].strip('"')
+        else:
+            code = ""
+            name = line.strip('"')
+            
+        level = determine_level(code)
+        raw_data.append((code, name, level))
+
+    # Генерация ID и связей ParentID
+    for idx, (code, name, level) in enumerate(raw_data):
+        row_id = generate_hex_id(idx)
+        
+        # Поиск родителя по стеку уровней
+        parent_id = "NULL"
+        if level > 1:
+            # Ищем ближайший родительский уровень, который выше текущего
+            for l in range(level - 1, 0, -1):
+                if l in stack:
+                    parent_id = stack[l]
+                    break
+        
+        stack[level] = row_id
+        # Очищаем дочерний стек при подъеме наверх
+        for l in list(stack.keys()):
+            if l > level:
+                del stack[l]
+                
+        rows.append([row_id, parent_id, code, name])
+
+    # Запись в результирующий CSV
+    with open(output_filename, mode="w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(["ID", "ParentID", "Code", "Name"])
+        writer.writerows(rows)
+
+    print(f"Готово! Обработано строк: {len(rows)}. Результат сохранен в файл: {output_filename}")
