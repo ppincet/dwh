@@ -67,6 +67,7 @@ def execute_sql_script(cursor, statement):
 def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, str]:
     EXCLUDED = {
                 'PREDEFINEDID',
+                'OWNERIDRREF'
               
                 }
     try:
@@ -123,14 +124,12 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     col_name_pure, field_n = match.groups()
                 else:
                     col_name_pure = col_name
-                    field_n = None
+                    field_n = ''
                 col_name_field_n = re.search(r"d+", col_name)
                 if re.search(r"(RRREF|RTREF)$", col_name):
                     ref_type = 2
                     spec_idx.add(col_name_pure)
-                elif (re.search(r"RREF$", col_name) 
-                        and col_name != 'IDRREF' 
-                        and 'PARENT' not in col_name):
+                elif re.search(r"RREF$", col_name) and not re.search(r"IDRREF|PARENT", col_name):
                     ref_type = 1
                     ref_ref = '10000000' if 'Перечисление' in str(row[7]) else row[8]
                 elif col_name == 'IDRREF':
@@ -165,6 +164,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
                     if not aliases_only or pd.notna(row[15]):
+                        print(f'field_n: {field_n}, col name : {col_name_pure}')
                         view_select_lines.append(f'\tisnull(Z{field_n}.ID, 0) {alias if alias else "Z" + field_n + "ID"}')
                         view_join_lines.append(f'left join ZSUBKONTO Z{field_n} on Z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and Z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
@@ -191,15 +191,19 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str} {args_isnull}")
                     insert_lines.append(f"\t{cname}")
                     if not aliases_only or pd.notna(row[15]):
-                        default_val = "''" if 'char' in data_type else 0
+                        print(f'field_n: {field_n}, col name : {col_name_pure}')
+                        if 'char' in data_type: default_val = "''"
+                        elif 'datetime' in data_type: default_val = "'1900-01-01'"
+                        else: default_val = 0
                         col_alias = alias if alias else cname
                         view_select_lines.append(f"\tisnull({cname}, {default_val}) {col_alias}")
             for item in spec_idx:
                 print(f'idx item:{item}')
+
                 idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
-                idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref 
-                            ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
+                            ON {stage_buffer_name} ({item}RTREF, {item}RRREF);''')
                 
             # lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
             pk_s = f'\n\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
@@ -212,7 +216,9 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             sql_view_create_statement += ',\n'.join(view_select_lines) + f'\nfrom {stage_stock_name} ref\n' + '\n'.join(view_join_lines)
             sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
     except Exception as e:
-            print(f'exception: {e}')
+            print(f'schema exception: {e}')
+            import traceback
+            traceback.print_exc()
     return {
         'sql_create': sql_create_statement,
         'sql_buffer_create': sql_create_buffer_statement,
@@ -267,10 +273,20 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> bool:
         create_cursor = dst_connection.cursor()
         insert_cursor = dst_connection.cursor()
         # insert_cursor.fast_executemany = True
+        # print(statements['sql_select'])
+        print(statements['sql_create'])
+    
+        # print(statements['sql_buffer_create'])
+
+                # return True
         create_cursor.execute(statements['sql_create'])
+        print('after create')
         create_cursor.execute(statements['sql_buffer_create'])
+        # print('after buffer')
         create_cursor.execute(statements['sql_create_tempo'])
+        print('after tempo')
         create_view(create_cursor, statements['sql_view_create'])
+        print('after view')
         update_ref(source_cursor, insert_cursor, name, statements)
         dst_connection.commit()
         source_cursor.close()
