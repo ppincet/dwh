@@ -76,9 +76,12 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
 def check_updates() -> None:
     print('check done')
 def start_etl() -> None:
-    get_fact_table()
-    check_updates()
-    print(f'done: {datetime.datetime.now()}')
+    try:
+        result = get_fact_table()
+        result = check_updates()
+        # commit log
+        print(f'done: {datetime.datetime.now()}')
+    except Exception as e:
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     create_refs(content, aliases_only)
 
