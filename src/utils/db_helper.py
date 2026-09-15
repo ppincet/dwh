@@ -6,6 +6,7 @@ import pandas as pd
 import re
 import csv
 import time
+import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 
@@ -135,7 +136,6 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                 col_name = row[4].upper()[1:]
                 if col_name in EXCLUDED: continue 
                 if 'TYPE' not in col_name: 
-                    # if data_type == 'binary':
                     if data_type == 'binary' and row[11] == 1: fld = f'\n\tcast(cast({row[4]} as int) as char(1)) {col_name}'
                     elif data_type == 'timestamp': fld = f'convert(varchar(18), convert(binary(8), {row[4]}), 1) {col_name}'
                     else: fld = row[4]
@@ -232,7 +232,6 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                 idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {stage_buffer_name} ({item}RTREF, {item}RRREF);''')
                 
-            # lines.append(f'\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n')
             pk_s = f'\n\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
             pk_b = f'\n\tCONSTRAINT PK_{stage_buffer_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
             pk_t = f'\n\tCONSTRAINT PK_{tempo_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
@@ -244,7 +243,6 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
     except Exception as e:
             print(f'schema exception: {e}')
-            import traceback
             traceback.print_exc()
     return {
         'sql_create': sql_create_statement,
