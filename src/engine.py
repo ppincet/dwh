@@ -57,9 +57,6 @@ def init(log_type: str = typer.Option(
         "--log-type",
         help = "Log type. Options: full, medium, successfull",
     ),
-    mode: str = typer.Option(
-        "daily", "--mode", help = "Start mode. Options: daily, spec"
-    ),
     ref_list: Optional[str] = typer.Option(
         None,
         "--ref-list",
@@ -69,6 +66,11 @@ def init(log_type: str = typer.Option(
         None,
         "--view-list",
         help = "Comma-separated list of views names (e.g. NOVIEW, SPEC)",
+    ),
+    view_only: bool = typer.Option(
+        False,
+        '--view-only',
+        help = 'create view only'
     ),
     aliases_only: bool = typer.Option(
         False,
@@ -96,8 +98,13 @@ def init(log_type: str = typer.Option(
     # create view only
     # process.create_refs(content, aliases_only)
     #process.get_fact_table()
-    process.do_init(content, aliases_only)
+    print(f'view only: {view_only}')
+    if view_only:
+        process.create_refs(content, aliases_only, view_only)
+    else:
+        process.do_init(content, aliases_only)
     print('done')
+
 @app.command()
 def upd():
     '''

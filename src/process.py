@@ -56,13 +56,16 @@ def init_subkonto():
             
     print(f'{datetime.datetime.now()} : done init skonto')
 
-def create_refs(content: Dict[str, Optional[str]], aliases_only: str) -> None:
+def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
     try:
         for k, v in content.items():
             if k is None: continue
-            db_helper.create_ref(f'{k}', 
-                v if v is not None else f'VREF{k}',
-                aliases_only)
+            if not view_only:
+                db_helper.create_ref(f'{k}', 
+                    v if v is not None else f'VREF{k}',
+                    aliases_only)
+            else:
+                db_helper.create_view_standalone(k, v, aliases_only, None)
             print(f'{k} done at {datetime.datetime.now()}')
     except Exception as e:
         print(f'fatal : {e}')
@@ -82,9 +85,9 @@ def start_etl() -> None:
         # commit log
         print(f'done: {datetime.datetime.now()}')
     except Exception as e:
+        print(f'exception : {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
-    create_refs(content, aliases_only)
-
+    create_refs(content, aliases_only, False)
 def perform_command(command: str, args: dict[str, str]) -> None:
     method = getattr(db_helper, command, **args)
     if callable(method): method(**args)

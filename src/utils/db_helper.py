@@ -1,7 +1,7 @@
 import pyodbc
 from config import settings
 from pathlib import Path
-import common
+from utils import common
 import pandas as pd
 import re
 import csv
@@ -127,7 +127,9 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             view_select_lines = []
             view_join_lines = []
             spec_idx = set()
+            was_composite_line = False
             for _, row in result.iterrows():
+                
                 data_type = str(row[10]).strip().lower() 
                 
                 col_name = row[4].upper()[1:]
@@ -184,7 +186,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{col_name_pure}RRREF\tbinary(16){args_isnull}")
                     insert_lines.append(f"\t{col_name_pure}RRREF")
                     if not aliases_only or pd.notna(row[15]):
-                        print(f'field_n: {field_n}, col name : {col_name_pure}')
+                        # print(f'field_n: {field_n}, col name : {col_name_pure}')
                         view_select_lines.append(f'\tisnull(Z{field_n}.ID, 0) {alias if alias else "Z" + field_n + "ID"}')
                         view_join_lines.append(f'left join ZSUBKONTO Z{field_n} on Z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and Z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
@@ -193,7 +195,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
                     insert_lines.append(f"\tIDRREF")
-                    view_select_lines.append(f'zid.ID {alias}')
+                    view_select_lines.append(f'zid.ID ZBGUID')
                     view_join_lines.append(f'inner join ZSUBKONTO zid on zid.Z_TYPE = ref.IDTREF and zid.Z_REF = ref.IDRREF')
                 if ref_type == 4:
                     lines.append(f"\tPARENTIDRTREF\tbinary(4) default 0x{ref_ref} not null")
@@ -211,15 +213,20 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     lines.append(f"\t{cname}\t{'char' if data_type == 'binary' and row[11] == 1 else data_type}  {args_str} {args_isnull}")
                     insert_lines.append(f"\t{cname}")
                     if not aliases_only or pd.notna(row[15]):
-                        print(f'field_n: {field_n}, col name : {col_name_pure}')
                         if 'char' in data_type: default_val = "''"
                         elif 'datetime' in data_type: default_val = "'1900-01-01'"
                         else: default_val = 0
                         col_alias = alias if alias else cname
-                        view_select_lines.append(f"\tisnull({cname}, {default_val}) {col_alias}")
+                        if ref_type == 0:
+                            view_select_lines.append(f"\tisnull({cname}, {default_val}) {col_alias}") 
+                        elif not was_composite_line :
+                            view_select_lines.append(f'\tisnull(Z{field_n}.ID, 0) {alias if alias else "Z" + field_n + "ID"}')
+                            was_composite_line = True
+                        else: was_composite_line = False
+                        if ref_type == 2 and not was_composite_line:
+                            view_join_lines.append(f'left join ZSUBKONTO Z{field_n} on Z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and Z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
             for item in spec_idx:
-                print(f'idx item:{item}')
-
+                
                 idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
                 idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
@@ -277,8 +284,6 @@ def update_ref(src_cursor: pyodbc.Cursor,
 
 def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
     try:
-        print('inside create view')
-        print(statement)
         execute_sql_script(dst_cursor, statement)
     except Exception as e:
         print(f'create view exception: {e}')
@@ -286,8 +291,7 @@ def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
 
 def create_ref(name: str, view_name: str, aliases_only : bool) -> None:
     try:
-        statements = create_schema(name, view_name, aliases_only)      
-        # return True
+        statements = create_schema(name, view_name, aliases_only)
         with get_ref_cursors() as (src_cursor, dst_cursor):
             dst_cursor.execute(statements['sql_create'])
             dst_cursor.execute(statements['sql_buffer_create'])
@@ -299,14 +303,24 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> None:
         raise
     
 
-def update_ref_standalone(ref_name: str, statements: dict[str, str], session: dict) -> None:
+def update_ref_standalone(ref_name: str, view_name: str, aliases_only: bool, session: dict) -> None:
     try:
+        statements = create_schema(ref_name, view_name, aliases_only)
         with get_ref_cursors() as (src_cursor, dst_cursor):
             update_ref(src_cursor, dst_cursor, ref_name, statements, session)
     except Exception as e:
         print(f'update ref standalone exception: {e}')
         raise
-
+def create_view_standalone(ref_name: str, view_name: str, aliases_only: bool, session: dict) -> None:
+    try:
+        statements = create_schema(ref_name, view_name, aliases_only)
+        print('view create')
+        print(statements['sql_view_create'])
+        with get_ref_cursors() as (src_cursor, dst_cursor):
+            create_view(dst_cursor, statements['sql_view_create'])
+    except Exception as e:
+        print(f'create view standalone exception: {e}')
+        raise
 def populate_enums():   
     server = f"{settings.DST_SRV},{settings.DST_PORT}"
     database = settings.DST_DB
@@ -370,45 +384,6 @@ def read_csv_chunks(file_path, chunk_size=200):
     except Exception as e:
         print(f"Exception: {e}")
 
-# 2do : add period
-# !!! deprecated !!!
-def get_fact_table_(period_from :str, period_to :str) -> None:
-    try:
-        conn_strings = get_conn_strings()
-        src_conn = pyodbc.connect(conn_strings['src_1cb'])
-        dst_conn = pyodbc.connect(conn_strings['dst'])
-        dst_conn.autocommit = False
-        src_cursor = src_conn.cursor()
-        src_cursor.fast_executemany = True
-        dst_cursor = dst_conn.cursor()
-        dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
-        src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
-        chunkn = 0
-        for chunk in get_data_chunks(src_cursor, BATCH_SIZE):
-            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
-        dst_cursor.execute("""
-            CREATE NONCLUSTERED INDEX IX_ZFACT_Base 
-            ON #ZFACT (ZPERIOD, ZBDACCT, ZBDACCR);
-
-            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group1 
-            ON #ZFACT (ZSK00T, ZSK00R, ZSK01T, ZSK01R, ZSK02T, ZSK02R);
-
-            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group2 
-            ON #ZFACT (ZSK03T, ZSK03R, ZSK10T, ZSK10R, ZSK11T, ZSK11R);
-    
-            CREATE NONCLUSTERED INDEX IX_ZFACT_SK_Group3 
-            ON #ZFACT (ZSK12T, ZSK12R, ZSK13T, ZSK13R, ZSK20T, ZSK20R);
-        """)
-        dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
-        dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
-        dst_cursor.commit()
-    except Exception as e:
-        dst_cursor.rollback()
-        print(f'exception {e}')
-    finally:
-        if src_conn: src_conn.close()
-        if src_conn: dst_conn.close()
-
 def get_or_create_checkpoint(dst_cursor, 
                              task_name, 
                              start_window, 
@@ -454,7 +429,7 @@ def update_checkpoint(dst_cursor, dst_conn, task_name, last_period, last_tref, l
                        (last_period, last_tref, last_rref, last_lineno, total_rows, status, task_name))
 
 # wo nolock (pagination)
-def get_fact_table(period_from :str, period_to :str) -> bool:
+def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
     upd_cp = cp_struct.clone()
     try:
         with get_ref_cursors() as (src_cursor, dst_cursor):
@@ -530,8 +505,7 @@ def get_fact_table(period_from :str, period_to :str) -> bool:
         dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
     except Exception as e:        
         print(f'exception {e}')
-        # raise
-    return True
+        raise
 
 
 def init_subkonto():
