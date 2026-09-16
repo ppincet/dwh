@@ -502,7 +502,8 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
             dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
         dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
         dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
-    except Exception as e:        
+    except Exception as e:  
+              
         print(f'exception {e}')
         raise
 
