@@ -36,10 +36,14 @@ def daily(log_type: Optional[str] = typer.Option(
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def custom(
     ctx: typer.Context,
+    module_name: str = typer.Option(
+        '---module',
+        help = 'Name of the module to execute from'
+    ),
     command: str = typer.Option(
         ..., 
         "--command", 
-        help="Name of the method in db_helper to execute"
+        help="Name of the method to execute"
         ),
 ):
     args = {}
@@ -48,7 +52,7 @@ def custom(
         if "=" in clean_item:
             k, v = clean_item.split("=", 1)
             args[k] = v
-    process.perform_command(command, args)
+    process.perform_command(module_name, command, args)
     
     
 @app.command()

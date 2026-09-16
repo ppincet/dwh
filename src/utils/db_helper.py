@@ -48,7 +48,7 @@ def get_conn_strings():
     }
 
 @contextmanager
-def get_ref_cursors():
+def get_system_cursors():
     src_conn = None
     dst_conn = None
     try:
@@ -290,7 +290,7 @@ def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
 def create_ref(name: str, view_name: str, aliases_only : bool) -> None:
     try:
         statements = create_schema(name, view_name, aliases_only)
-        with get_ref_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors() as (src_cursor, dst_cursor):
             dst_cursor.execute(statements['sql_create'])
             dst_cursor.execute(statements['sql_buffer_create'])
             dst_cursor.execute(statements['sql_create_tempo'])
@@ -304,7 +304,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool) -> None:
 def update_ref_standalone(ref_name: str, view_name: str, aliases_only: bool, session: dict) -> None:
     try:
         statements = create_schema(ref_name, view_name, aliases_only)
-        with get_ref_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors() as (src_cursor, dst_cursor):
             update_ref(src_cursor, dst_cursor, ref_name, statements, session)
     except Exception as e:
         print(f'update ref standalone exception: {e}')
@@ -314,7 +314,7 @@ def create_view_standalone(ref_name: str, view_name: str, aliases_only: bool, se
         statements = create_schema(ref_name, view_name, aliases_only)
         print('view create')
         print(statements['sql_view_create'])
-        with get_ref_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors() as (src_cursor, dst_cursor):
             create_view(dst_cursor, statements['sql_view_create'])
     except Exception as e:
         print(f'create view standalone exception: {e}')
@@ -429,8 +429,9 @@ def update_checkpoint(dst_cursor, dst_conn, task_name, last_period, last_tref, l
 # wo nolock (pagination)
 def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
     upd_cp = cp_struct.clone()
+    
     try:
-        with get_ref_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors() as (src_cursor, dst_cursor):
             src_cursor.fast_executemany = True
             cp = get_or_create_checkpoint(dst_cursor, 
                                           TASK_NAME, 

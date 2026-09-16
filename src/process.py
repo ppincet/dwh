@@ -1,8 +1,9 @@
 import datetime
 from utils import db_helper, common
 from typing import List, Dict, Optional
+import importlib
 
-
+# deprecated
 def init_subkonto():
     print(f'{datetime.datetime.now()} : start init skonto')
     conn_strings = db_helper.get_conn_strings()
@@ -88,8 +89,9 @@ def start_etl() -> None:
         print(f'exception : {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     create_refs(content, aliases_only, False)
-def perform_command(command: str, args: dict[str, str]) -> None:
-    method = getattr(db_helper, command, **args)
+
+def perform_command(module_name: str, command: str, args: dict[str, str]) -> None:
+    method = getattr(importlib.import_module(module_name), command, **args)
     if callable(method): method(**args)
     
     
