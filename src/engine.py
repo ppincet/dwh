@@ -36,13 +36,14 @@ def daily(log_type: Optional[str] = typer.Option(
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def custom(
     ctx: typer.Context,
-    module_name: str = typer.Option(
-        '---module',
+    module: str = typer.Option(
+        ...,
+        '--module',
         help = 'Name of the module to execute from'
     ),
-    command: str = typer.Option(
+    method: str = typer.Option(
         ..., 
-        "--command", 
+        "--method", 
         help="Name of the method to execute"
         ),
 ):
@@ -52,7 +53,7 @@ def custom(
         if "=" in clean_item:
             k, v = clean_item.split("=", 1)
             args[k] = v
-    process.perform_command(module_name, command, args)
+    process.perform_command(module, method, args)
     
     
 @app.command()
@@ -90,6 +91,8 @@ def init(log_type: str = typer.Option(
     '''
         system init
     '''
+    process.upload_docs()
+    return
     refs = []
     views = []
     if ref_list:

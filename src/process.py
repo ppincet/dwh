@@ -72,17 +72,17 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only
         print(f'fatal : {e}')
     print(f'{datetime.datetime.now()} : done create refs')
 
-def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
+def get_fact_table(period: str = 'AUTO', is_odinass = True,) -> None:
     period_range = (
         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
     )
-    db_helper.get_fact_table(*period_range)
+    db_helper.get_fact_table(*period_range, None)
 def check_updates() -> None:
     print('check done')
 def start_etl() -> None:
     try:
         result = get_fact_table()
-        result = check_updates()
+        # result = check_updates()
         # commit log
         print(f'done: {datetime.datetime.now()}')
     except Exception as e:
@@ -93,6 +93,10 @@ def do_init(content: dict[str, str], aliases_only: bool) -> None:
 def perform_command(module_name: str, command: str, args: dict[str, str]) -> None:
     method = getattr(importlib.import_module(module_name), command, **args)
     if callable(method): method(**args)
+def upload_docs() -> None:
+    print(f'start upd: {datetime.datetime.now()}')
+    db_helper.upload_docs(*common.get_rolling_window_standard(True))
+    print(f'done: {datetime.datetime.now()}')
     
     
 
