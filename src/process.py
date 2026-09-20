@@ -3,6 +3,7 @@ from utils import db_helper, common
 from typing import List, Dict, Optional
 import importlib
 
+session = common.create_session()
 # deprecated
 def init_subkonto():
     print(f'{datetime.datetime.now()} : start init skonto')
@@ -82,7 +83,7 @@ def check_updates() -> None:
 def start_etl() -> None:
     try:
         result = get_fact_table()
-        # result = check_updates()
+        result = check_updates()
         # commit log
         print(f'done: {datetime.datetime.now()}')
     except Exception as e:
