@@ -24,6 +24,7 @@ def manual(period: str = typer.Option(
         )):
     process.get_fact_table(period, is_odinass)
 
+
 @app.command()
 def daily(log_type: Optional[str] = typer.Option(
         "full",
@@ -31,6 +32,8 @@ def daily(log_type: Optional[str] = typer.Option(
         help="Log type. Options: full, medium, successfull",
     ),
     ):
+    # process.check_etl_bot()
+    # return
     process.start_etl()
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

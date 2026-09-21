@@ -48,7 +48,7 @@ def get_conn_strings():
     }
 
 @contextmanager
-def get_system_cursors():
+def get_system_cursors(session: dict):
     src_conn = None
     dst_conn = None
     try:
@@ -60,8 +60,12 @@ def get_system_cursors():
         dst_cursor = dst_conn.cursor()
         yield src_cursor, dst_cursor
         dst_conn.commit()
+        # add succes log
+
     except Exception as e:
         if dst_conn: dst_conn.rollback()
+        print(f'session for sy cursors : {session}')
+        # add failure log
         raise
     finally:
         if src_conn: src_conn.close()
@@ -287,7 +291,7 @@ def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
         print(f'create view exception: {e}')
         raise
 
-def create_ref(name: str, view_name: str, aliases_only : bool) -> None:
+def create_ref(name: str, view_name: str, aliases_only : bool, session: dict) -> None:
     try:
         statements = create_schema(name, view_name, aliases_only)
         with get_system_cursors() as (src_cursor, dst_cursor):
@@ -439,7 +443,7 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
 def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
     upd_cp = cp_struct.copy()
     try:
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors(session) as (src_cursor, dst_cursor):
             src_cursor.fast_executemany = True
             cp = get_or_create_checkpoint(dst_cursor, 
                                           TASK_NAME, 
@@ -639,4 +643,12 @@ def create_acc() -> None:
     finally:
         if src_connection: src_connection.close()
         if dst_connection: dst_connection.close()
+# def check_etl_bot(session: dict) -> None:
+#     print(f'enter etl bot')
+#     try:
+
+#     except Exception as e:
+
+#         raise
+
 
