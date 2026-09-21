@@ -422,95 +422,20 @@ def get_or_create_checkpoint(dst_cursor,
         # 2do - fill log entry
         print(f'exception: {e}')
     return cp
-# косяк здесь
-def update_checkpoint(dst_cursor : pyodbc.Cursor, task_name: str, cp: dict) -> None:
+
+def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
+    print('checkpoint')
     dst_cursor.execute(get_sql_statements('checkpoint_upd.sql')[0], 
                        (cp['last_period'], 
                         cp['last_tref'], 
                         cp['last_rref'], 
                         cp['last_lineno'], 
                         cp['total_rows'], 
-                        cp['status']),
-                        task_name)
-
+                        cp['status'],
+                        cp['task_name']))
+    print('after cp')
 # wo nolock (pagination)
-def test():
-    upd_cp = cp_struct.copy()
-    print(upd_cp) 
 
-def tempo(period_from :str, period_to :str, session: dict ) -> None:
-    upd_cp = cp_struct.copy()
-    try:
-        
-        src_cursor.fast_executemany = True
-        cp = get_or_create_checkpoint(, 
-                                        TASK_NAME, 
-                                        period_from, 
-                                        period_to)
-        last_period = cp["last_period"]
-        last_tref = cp["last_tref"]
-        last_rref = cp["last_rref"]
-        last_lineno = cp["last_lineno"]
-        total_rows = cp["total_rows"]
-        print('got cp')
-        batch_num = 0
-        start_time = time.time()
-
-        while True:
-            batch_num += 1
-            print(batch_num)
-            params = (
-                BATCH_SIZE,
-                BATCH_SIZE, last_period, period_to,                        
-                BATCH_SIZE, last_period, last_tref,                         
-                BATCH_SIZE, last_period, last_tref, last_rref,              
-                BATCH_SIZE, last_period, last_tref, last_rref, last_lineno, 
-                BATCH_SIZE, last_period, period_to,                         
-                BATCH_SIZE, last_period, last_tref,                         
-                BATCH_SIZE, last_period, last_tref, last_rref,              
-                BATCH_SIZE, last_period, last_tref, last_rref, last_lineno
-            )
-            create_t_accs(src_cursor)
-            print('after tempo acc')
-            src_cursor.execute(get_sql_statements('get_ft_new.sql')[0], params)
-            rows = src_cursor.fetchall()
-            if not rows:
-                update_checkpoint(dst_cursor, 
-                                TASK_NAME, 
-                                last_period, 
-                                last_tref, 
-                                last_rref, 
-                                last_lineno, 
-                                total_rows, 
-                                status='SUCCESS')
-                break
-            
-            # dst_cursor.fast_executemany = True
-
-            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], 
-                                [row[:-3] for row in rows])
-            last_row = rows[-1]
-            last_period = last_row[0]
-            last_tref, last_rref, last_lineno = last_row[-3:]
-            total_rows += len(rows)
-            upd_cp['task_name'] = TASK_NAME 
-            upd_cp['last_period'] =last_period
-            upd_cp['last_tref'] = last_tref
-            upd_cp['last_rref'] = last_rref 
-            upd_cp['last_lineno'] = last_lineno
-            upd_cp['total_rows'] = total_rows
-            upd_cp['status'] = 'IN_PROGRESS'
-            update_checkpoint(dst_cursor,  upd_cp)
-            dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
-            src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
-        for chunk in get_data_chunks(src_cursor, BATCH_SIZE):
-            dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
-        dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
-        dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
-    except Exception as e:  
-                
-        print(f'exception {e}')
-        raise
 def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
     upd_cp = cp_struct.copy()
     try:
@@ -528,7 +453,7 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
             print('got cp')
             batch_num = 0
             start_time = time.time()
-
+            create_t_accs(src_cursor)
             while True:
                 batch_num += 1
                 print(batch_num)
@@ -543,25 +468,26 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
                     BATCH_SIZE, last_period, last_tref, last_rref,              
                     BATCH_SIZE, last_period, last_tref, last_rref, last_lineno
                 )
-                create_t_accs(src_cursor)
-                print('after tempo acc')
+                
                 src_cursor.execute(get_sql_statements('get_ft_new.sql')[0], params)
                 rows = src_cursor.fetchall()
                 if not rows:
-                    update_checkpoint(dst_cursor, 
-                                    TASK_NAME, 
-                                    last_period, 
-                                    last_tref, 
-                                    last_rref, 
-                                    last_lineno, 
-                                    total_rows, 
-                                    status='SUCCESS')
+                    upd_cp['task_name'] = TASK_NAME
+                    upd_cp['last_period'] = last_period 
+                    upd_cp['last_tref'] = last_tref
+                    upd_cp['last_rref'] = last_rref 
+                    upd_cp['last_lineno']= last_lineno 
+                    upd_cp['total_rows'] = total_rows
+                    upd_cp['status'] ='SUCCESS'
+                    update_checkpoint(dst_cursor, upd_cp)
                     break
                 
                 # dst_cursor.fast_executemany = True
-
+                print('before insert')
+                
                 dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], 
                                     [row[:-3] for row in rows])
+                print('insert done')
                 last_row = rows[-1]
                 last_period = last_row[0]
                 last_tref, last_rref, last_lineno = last_row[-3:]
@@ -574,11 +500,7 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
                 upd_cp['total_rows'] = total_rows
                 upd_cp['status'] = 'IN_PROGRESS'
                 update_checkpoint(dst_cursor,  upd_cp)
-                dst_cursor.execute(get_sql_statements('create_tempo.sql')[0])
-                src_cursor.execute(get_sql_statements('get_fact_main.sql')[0](period_from, period_to))
-            for chunk in get_data_chunks(src_cursor, BATCH_SIZE):
-                dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], chunk)
-            dst_cursor.execute("DROP TABLE IF EXISTS ZFACT;")
+            dst_cursor.execute('drop table if exists ZFACT')
             dst_cursor.execute(get_sql_statements('insert_fact_table_bw.sql')[0])
     except Exception as e:  
               
@@ -597,8 +519,9 @@ def get_docs() -> list:
         print(f'exception: {e}')
         raise
 def create_t_accs(create_cursor: pyodbc.Cursor) -> None:
-                create_cursor.execute(get_sql_statements('create_t_accs.sql')[0])
-                create_cursor.execute(get_sql_statements('create_t_accs.sql')[1])
+    create_cursor.execute(get_sql_statements('create_t_accs.sql')[0])
+    create_cursor.execute(get_sql_statements('create_t_accs.sql')[1])
+                
 def upload_docs(p_from: str, p_to: str) -> None:
     # there is a need to create table & view manually
     try:

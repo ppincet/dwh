@@ -134,11 +134,11 @@ select
     dt_sk.sk12t  ZSK12T, dt_sk.sk12r  ZSK12R,
     dt_sk.sk13t  ZSK13T, dt_sk.sk13r  ZSK13R,
     dt_sk.sk20t  ZSK20T, dt_sk.sk20r  ZSK20R,
+    k.recordertref,
+    k.recorderrref,
     k._recordertref,
     k._recorderrref,
-    k._lineno,
-    k.recordertref,
-    k.recorderrref
+    k._lineno
 from batchkeys k
 outer apply (
     select

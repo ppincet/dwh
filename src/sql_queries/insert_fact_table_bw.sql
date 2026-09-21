@@ -2,6 +2,7 @@ SELECT
     z.ZPERIOD,
     z.ZAMNT,
     z1.ID ACCID,
+    z.ZATYPE,
     isnull(z2.ID, 0) ZSK00,
     isnull(z3.ID, 0) ZSK01,
     isnull(z4.ID, 0) ZSK02,
@@ -10,9 +11,10 @@ SELECT
     isnull(z7.ID, 0) ZSK11,
     isnull(z8.ID, 0) ZSK12,
     isnull(z9.ID, 0) ZSK13,
-    isnull(z10.ID, 0) ZSK20
+    isnull(z10.ID, 0) ZSK20,
+    ZRECTREF, ZRECRREF
 INTO ZFACT
-FROM #ZFACT z
+FROM ZFACTSTG z
 LEFT JOIN ZSUBKONTO z1 ON z1.Z_TYPE = z.ZBDACCT AND z1.Z_REF = z.ZBDACCR
 LEFT JOIN ZSUBKONTO z2 ON z2.Z_TYPE = z.ZSK00T    AND z2.Z_REF = z.ZSK00R
 LEFT JOIN ZSUBKONTO z3 ON z3.Z_TYPE = z.ZSK01T    AND z3.Z_REF = z.ZSK01R

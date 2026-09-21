@@ -91,8 +91,8 @@ def init(log_type: str = typer.Option(
     '''
         system init
     '''
-    process.upload_docs()
-    return
+    # process.upload_docs()
+    # return
     refs = []
     views = []
     if ref_list:
