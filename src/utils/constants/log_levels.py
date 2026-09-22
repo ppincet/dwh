@@ -1,0 +1,12 @@
+#region Log Levels
+FINEST = 'FINEST'
+INFO = 'INFO'
+SUCCESS = 'SUCCESS'
+WARNING = 'WARNING'
+EXCEPTION = 'EXCEPTION'
+#endregion
+#region CLI Filter Modes
+MODE_FULL = 'FULL'
+MODE_MEDIUM = 'MEDIUM'
+MODE_SUCCESS = 'SUCCESS'
+#endregion

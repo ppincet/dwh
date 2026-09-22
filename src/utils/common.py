@@ -1,6 +1,19 @@
 import datetime
 import pandas as pd
 import uuid
+from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
+
+def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
+    if lg_level == 'FULL':
+        return logs    
+    if lg_level == 'MEDIUM':
+        allowed = {SUCCESS, WARNING, EXCEPTION}
+        return [log for log in logs if log['level'] in allowed]
+    
+    if lg_level == 'SUCCESS':
+        allowed = {SUCCESS, EXCEPTION}
+        return [log for log in logs if log['level'] in allowed]
+    return logs
 
 def create_session(command: str = "DEFAULT") -> dict:
     return {
@@ -84,36 +97,18 @@ def convert_hex_to_bytes(val: str) -> bytes:
 
 
 
-def find_subkontos() -> None:
-    data = {
-        "col": [
-            "Справочник.ПрибылиУбытки",
-            "Перечисление.БазаОборотныхНалогов.Дополнительно", # строка с двумя точками для теста
-            "Справочник.СтавкиУСН"
-        ]
-    }
-    df = pd.DataFrame(data)
-
-    # Извлекаем текст после первой точки до второй точки (или до конца)
-    df['result'] = df['col'].str.extract(r'\.([^.]+)', expand=False)
-
-    print(df)
-
 import csv
 import re
 
 def determine_level(code):
-    """Определяет уровень вложенности по количеству точек в коде (например, '1.1.1' -> уровень 3)."""
     if not code:
         return 1
-    # Считаем точки в коде (убираем хвостовые)
     clean_code = code.strip('.')
     if not clean_code:
         return 1
     return clean_code.count('.') + 1
 
 def generate_hex_id(index):
-    """Генерирует уникальный 16-байтовый hex-идентификатор формата 0x... для binary(16)."""
     hex_str = format(index + 1, 'X').zfill(32)
     return f"0x{hex_str}"
 
