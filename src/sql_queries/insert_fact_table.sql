@@ -1,7 +1,7 @@
 insert into ZFACTSTG (
     ZPERIOD,
-    ZBDACCT,
     ZBDACCR,
+    ZBCACCR,
     ZAMNT,
     ZATYPE,
     ZSK00T,

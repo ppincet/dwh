@@ -5,7 +5,8 @@ with batchkeys as (
 
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountdtrref  _accountref, 
+            rg._accountdtrref  _accountdref,
+            rg._accountctrref  _accountcref, 
             rg._fld617  z_amnt, 
             cast('D' as varchar(1))  d_c_flag,
             convert(char(8), rg._recordertref,2) recordertref,
@@ -19,7 +20,9 @@ with batchkeys as (
 
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountdtrref, rg._fld617 as z_amnt, cast('D' as varchar(1)) as d_c_flag,
+            rg._accountdtrref, 
+            rg._accountctrref, 
+            rg._fld617 as z_amnt, cast('D' as varchar(1)) as d_c_flag,
             convert(char(8), rg._recordertref,2),
             convert(char(32), rg._recorderrref,2)
         from dbo._accrg614 rg 
@@ -32,6 +35,7 @@ with batchkeys as (
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
             rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('D' as varchar(1))  d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -46,6 +50,7 @@ with batchkeys as (
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
             rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('D' as varchar(1))  d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -60,7 +65,8 @@ with batchkeys as (
        
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountctrref  _accountref, 
+            rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('C' as varchar(1))  d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -74,7 +80,8 @@ with batchkeys as (
     
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountctrref  _accountref, 
+            rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('C' as varchar(1)) as d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -87,7 +94,8 @@ with batchkeys as (
 
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountctrref  _accountref, 
+            rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('C' as varchar(1)) d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -101,7 +109,8 @@ with batchkeys as (
 
         select top (?) 
             rg._period, rg._recordertref, rg._recorderrref, rg._lineno,
-            rg._accountctrref  _accountref, 
+            rg._accountdtrref, 
+            rg._accountctrref, 
             rg._fld617  z_amnt, 
             cast('C' as varchar(1))  d_c_flag,
             convert(char(8), rg._recordertref,2),
@@ -120,11 +129,11 @@ with batchkeys as (
 )
 select 
     k._period  z_period,
-    0x50000000  z_bk_dt_type,       
-    k._accountref  z_bk_account_ref, 
+    --0x50000000  z_bk_dt_type,       
+    k._accountdref  z_bk_accountd_ref, 
+    k._accountcref  z_bk_accountc_ref, 
     k.z_amnt,
     k.d_c_flag,                      
-    
     dt_sk.sk00t  ZSK00T, dt_sk.sk00r  ZSK00R,
     dt_sk.sk01t  ZSK01T, dt_sk.sk01r  ZSK01R,
     dt_sk.sk02t  ZSK02T, dt_sk.sk02r  ZSK02R,
@@ -164,7 +173,7 @@ outer apply (
         max(case when aeddt._keyfield = 0 and ed._value_rtref = 0x0000001b then ed._value_rrref end)  sk20r
     from dbo._accrged639 ed 
     inner join dbo._acc9_extdim604 aeddt 
-        on aeddt._acc9_idrref = k._accountref 
+        on aeddt._acc9_idrref = k._accountdref 
        and ed._kindrref = aeddt._dimkindrref
     where ed._period = k._period
       and ed._recordertref = k._recordertref

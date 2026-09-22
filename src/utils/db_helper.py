@@ -458,6 +458,8 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
             batch_num = 0
             start_time = time.time()
             create_t_accs(src_cursor)
+            # print(get_sql_statements('get_ft_new.sql')[0])
+            dst_cursor.execute('TRUNCATE TABLE ZFACTSTG')
             while True:
                 batch_num += 1
                 print(batch_num)

@@ -34,7 +34,7 @@ def check_updates() -> None:
 def start_etl() -> None:
     try:
         result = get_fact_table()
-        result = check_updates()
+        #result = check_updates()
         # commit log
     except Exception as e:
         print(f'exception : {e}')
