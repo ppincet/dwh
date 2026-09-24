@@ -385,7 +385,7 @@ def read_csv_chunks(file_path, chunk_size=200):
                 connection.execute(zenum_table.insert(), chunk)
     except Exception as e:
         print(f"Exception: {e}")
-
+#region pagination
 def get_or_create_checkpoint(dst_cursor, 
                              task_name, 
                              start_window, 
@@ -438,6 +438,8 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
                         cp['status'],
                         cp['task_name']))
     print('after cp')
+#endregion
+
 # wo nolock (pagination)
 
 def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
@@ -513,33 +515,35 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
         print(f'exception {e}')
         raise
 
-def get_docs() -> list:
+def get_docs(session: dict) -> list:
     result = []
     try:
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors(session) as (src_cursor, dst_cursor):
             dst_cursor.execute('select ZENTITY from ZENTITY where ZTYPE = 1')
             for (row,) in dst_cursor.fetchall():
                 result.append(row)
         return result    
     except Exception as e:
-        print(f'exception: {e}')
+        print(f'exception in get docs: {e}')
         raise
 def create_t_accs(create_cursor: pyodbc.Cursor) -> None:
     create_cursor.execute(get_sql_statements('create_t_accs.sql')[0])
     create_cursor.execute(get_sql_statements('create_t_accs.sql')[1])
                 
-def upload_docs(p_from: str, p_to: str) -> None:
+def upload_docs(p_from: str, p_to: str, session: dict) -> None:
     # there is a need to create table & view manually
     try:
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors(session) as (src_cursor, dst_cursor):
             dst_cursor.fast_executemany = True
-            for doc in get_docs():
+            create_t_accs(src_cursor)
+            for doc in get_docs(session):
                 stmnts = get_sql_statements(f'{doc}.sql')
-                create_t_accs(src_cursor)
                 rows = src_cursor.execute(stmnts[0],(p_from, p_to))
                 
                 dst_cursor.execute(f'truncate table Z{doc.upper()}')
+                print('after trunc')
                 for chunk in get_data_chunks(rows):
+                    print('chunk')
                     dst_cursor.executemany(stmnts[1],chunk)
     except Exception as e:
         print(f'upd exception: {e}')

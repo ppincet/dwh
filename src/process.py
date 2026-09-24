@@ -36,12 +36,14 @@ def check_updates() -> None:
     print('check done')
 def start_etl() -> None:
     try:
+        print('start etl')
         session['command'] = 'START ETL'
-        result = get_fact_table()
+        result = upload_docs()
+        #result = get_fact_table()
         #result = check_updates()
         # commit log
     except Exception as e:
-        common.add_log(session, 'START ETL', , )
+        # common.add_log(session, 'START ETL', , )
         print(f'exception : {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     create_refs(content, aliases_only, False, session)

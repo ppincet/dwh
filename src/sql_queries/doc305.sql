@@ -17,13 +17,16 @@ select
     --left(_Fld9007, 255) _Fld9007
     _Fld9007,
     _Fld18638,
-    _Fld18639
+    _Fld18639,
+    _lineno9038
 from _documentjournal13332 j
 join _document305 d
 on j._DocumentRRef = d._IDRRef and j._Date_Time = d._Date_Time
 join #Accounts a
 on a._accountref = d._Fld8996RRef
-join services s on s.
+join _Document305_VT9037 dvt
+on d._IDRRef = dvt._Document305_IDRRef 
+join services s on s.tref = dvt._Fld9041_RTRef and s.rref = dvt._Fld9041_RRRef
 where 1=1 
     and j._date_time between ? and ?;
 --- insert part
@@ -37,29 +40,9 @@ where 1=1
     ZAGRMNTRREF,
     ZSUBJ,
     ZAMNT,
-    ZPRICE)
-values (?,?,?,?,?,?,?,?,?,?)
+    ZPRICE,
+    ZLNNO)
+values (?,?,?,?,?,?,?,?,?,?,?)
 
-
--- with services as (
--- select 0x000000a6 tref,
--- 	c._idrref rref,
--- 	c._Description cdesc,
--- 	p._description pdesc,
--- 	p._code pc
--- from _reference166 c
--- join _reference166 p
--- on c._parentidrref = p._IDRRef
--- 	where 1=1 
--- 	and p._code in (244, 47, 553))
--- select 
--- _Fld18638,
--- _Fld18639,
--- cdesc
--- from _Document305_VT9037 dvt
--- join _document305 d
--- on d._IDRRef = dvt._Document305_IDRRef 
--- join services s on s.tref = dvt._Fld9041_RTRef and s.rref = dvt._Fld9041_RRRef
--- where d._Date_Time between '40260801' and '40260923'
 
 
