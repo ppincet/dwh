@@ -3,7 +3,10 @@ from utils import db_helper, common
 from utils.constants.log_levels import FINEST, INFO, SUCCESS, WARNING, EXCEPTION 
 from typing import List, Dict, Optional
 import importlib
+import contextvars
+import functools
 
+session_container = contextvars.ContextVar('session_container', default=None)
 session = common.create_session()
 
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
@@ -51,7 +54,14 @@ def perform_command(module_name: str, command: str, args: dict[str, str]) -> Non
     method = getattr(importlib.import_module(module_name), command, **args)
     if callable(method): method(**args)
 def upload_docs() -> None:
-    db_helper.upload_docs(*common.get_rolling_window_standard(True), session)
+    """uploads all documents. uses get_rolling_window_standard.
+    
+        Args:
+            None.
+        Returns:
+            None.
+    """
+    db_helper.upload_docs(*common.get_rolling_window_standard(True))
     
     
 

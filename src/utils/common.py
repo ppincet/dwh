@@ -4,6 +4,14 @@ import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
 
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
+    """returns back filtered audit trail upon log level.
+        Args:
+            logs (list[dict]): audit trail.
+            lg_level (str): audit level.
+        Returns: 
+            list[dict]: filtered audit trail
+
+    """
     if lg_level == 'FULL':
         return logs    
     if lg_level == 'MEDIUM':
@@ -16,6 +24,14 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     return logs
 
 def create_session(command: str = "DEFAULT") -> dict:
+    """creates a session based on the provided command.
+
+    Args:
+        command (str, optional): command identifier for the session. defaults to "DEFAULT".
+
+    Returns:
+        dict: Created session object.
+    """
     return {
         "session_id": str(uuid.uuid4()),
         "command": command,
@@ -27,6 +43,18 @@ def create_session(command: str = "DEFAULT") -> dict:
     }
 
 def add_log(session: dict, step_name: str, message: str, level: str = "INFO") -> None:
+    """adds an audit trail entry.
+
+        Args:
+            session (dict): active session.
+            step_name (str): process step name.
+            message (str): message.
+            level (str, optional): audit trail level. defaults to 'INFO'.
+        Returns:
+            None
+
+
+    """
     session["logs"].append({
         "timestamp": datetime.datetime.now().isoformat(),
         "level": level,
@@ -67,7 +95,13 @@ def get_next_id(max_bytes: bytes) -> bytes:
     next_int = current_int + 1
     return next_int.to_bytes(16, byteorder='big')
 
-def get_rolling_window_standard(is_odinass: bool):
+def get_rolling_window_standard(is_odinass: bool) -> tuple[datetime.datetime, datetime.datetime]:
+    """returns back a tuple with 1st day at midnight of prev month & current day at the end of day
+        Args:
+            is_odinass (bool): represents odinass year offset flag.
+        Returns:
+            tuple[datetime.datetime, datetime.datetime]: a tuple containing start_date and end_date.
+    """
     today = datetime.date.today()
     first_of_this_month = today.replace(day=1)
     first_of_prev_month_date = (
@@ -84,10 +118,10 @@ def get_rolling_window_standard(is_odinass: bool):
         start_date = start_date.replace(year=start_date.year + 2000)
         end_date = end_date.replace(year=end_date.year + 2000)
     return start_date, end_date
-'''
-    converts hex from ms sql like 0x into bytes for SQLAlchemy
-'''
+
 def convert_hex_to_bytes(val: str) -> bytes:
+    """converts hex from ms sql like 0x into bytes for SQLAlchemy
+    """
     if pd.isna(val):
         return None
     val_str = str(val).strip()
@@ -96,7 +130,7 @@ def convert_hex_to_bytes(val: str) -> bytes:
     return bytes.fromhex(val_str)
 
 
-
+#region UFO (ai detected)
 import csv
 import re
 
@@ -119,8 +153,8 @@ def process_source_file(input_filename, output_filename):
     try:
         with open(input_filename, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-    except FileNotFoundError:
-        print(f"Ошибка: Не найден файл {input_filename}. Создайте его и поместите туда исходные данные.")
+    except FileNotFoundError as fnf:
+        print(f"exception: {fnf}")
         return
 
     raw_data = []
@@ -128,9 +162,7 @@ def process_source_file(input_filename, output_filename):
         line = line.strip()
         if not line:
             continue
-        
-        # Парсим строку: ожидаем, что первый токен — код (если есть), остальное — имя.
-        # Пример: "1.1.1. Продажи через интернет-магазин" или просто имя без кода.
+
         parts = line.split(maxsplit=1)
         
         if len(parts) == 2 and (re.match(r'^\d+(\.\d+)*\.?$', parts[0]) or parts[0].replace('.', '').isdigit()):
@@ -143,31 +175,30 @@ def process_source_file(input_filename, output_filename):
         level = determine_level(code)
         raw_data.append((code, name, level))
 
-    # Генерация ID и связей ParentID
+   
     for idx, (code, name, level) in enumerate(raw_data):
         row_id = generate_hex_id(idx)
         
-        # Поиск родителя по стеку уровней
+
         parent_id = "NULL"
         if level > 1:
-            # Ищем ближайший родительский уровень, который выше текущего
+       
             for l in range(level - 1, 0, -1):
                 if l in stack:
                     parent_id = stack[l]
                     break
         
         stack[level] = row_id
-        # Очищаем дочерний стек при подъеме наверх
+    
         for l in list(stack.keys()):
             if l > level:
                 del stack[l]
                 
         rows.append([row_id, parent_id, code, name])
 
-    # Запись в результирующий CSV
+   
     with open(output_filename, mode="w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(["ID", "ParentID", "Code", "Name"])
         writer.writerows(rows)
-
-    print(f"Готово! Обработано строк: {len(rows)}. Результат сохранен в файл: {output_filename}")
+#endregion

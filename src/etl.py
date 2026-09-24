@@ -1,8 +1,5 @@
 # main entry point
-# from config import settings
-import pyodbc
 import typer
-# from utils import db_helper
 import process
 from typing import Optional
 from itertools import zip_longest
@@ -28,13 +25,13 @@ def manual(period: str = typer.Option(
 @app.command()
 def daily(log_type: Optional[str] = typer.Option(
         "full",
-        "--log-type",
-        help="Log type. Options: full, medium, successfull",
+        "--log-level",
+        help="log level",
     ),
     ):
-    # process.check_etl_bot()
-    # return
-    process.start_etl()
+        # process.check_etl_bot()
+        # return
+        process.start_etl()
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def custom(
@@ -121,11 +118,8 @@ def upd():
         system update
     '''
     typer.echo('upd done')
-if __name__ == "__main__":
-    try:
-        app()  
-    except Exception as critical:
-        print(critical)
+if __name__ == "__main__": app()
+    
 
   
   
