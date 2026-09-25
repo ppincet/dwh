@@ -531,7 +531,9 @@ def create_t_accs(create_cursor: pyodbc.Cursor) -> None:
     create_cursor.execute(get_sql_statements('create_t_accs.sql')[1])
                 
 def upload_docs(p_from: str, p_to: str, session: dict) -> None:
+    #
     # there is a need to create table & view manually
+    #
     try:
         with get_system_cursors(session) as (src_cursor, dst_cursor):
             dst_cursor.fast_executemany = True

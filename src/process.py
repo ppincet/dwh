@@ -1,13 +1,36 @@
 import datetime
 from utils import db_helper, common
-from utils.constants.log_levels import FINEST, INFO, SUCCESS, WARNING, EXCEPTION 
+from utils.constants.log_levels import FINEST, INFO, SUCCESS, WARNING, EXCEPTION
+from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCES 
 from typing import List, Dict, Optional
 import importlib
 import contextvars
 import functools
 
+#region session decorator
 session_container = contextvars.ContextVar('session_container', default=None)
-session = common.create_session()
+
+def process_task(task_name: str, lg_level: str ):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            session = common.create_session()
+            token = session_container.set(session)
+            try:
+                result = func(*args, **kwargs)
+                session["context"]["status"] = "SUCCESS"
+                return result
+            except Exception as e:
+                session["context"]["status"] = "FAILED"
+                raise
+            finally:
+                common.commit_session(session, lg_level=lg_level)
+                session_container.reset(token)
+        return wrapper
+    return decorator
+
+#endregion
+
 
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
     try:
@@ -27,8 +50,9 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only
     finally: 
         # filter & commit session
         print(f'{datetime.datetime.now()} : done create refs')
+
 def check_etl_bot():
-    db_helper.check_etl_bot(session)
+    db_helper.check_etl_bot()
 
 def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     period_range = (
