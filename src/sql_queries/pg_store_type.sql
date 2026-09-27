@@ -1,3 +1,4 @@
+--- beware of the sequence - 
 CREATE TABLE DBO.STORE_STORETYPE
 (
     ZKEY0 BIGINT NOT NULL,
@@ -14,10 +15,20 @@ CREATE TABLE DBO.STORE_STORETYPE
     ZSTORE_STORETYPEGROUP_STORETYPE BIGINT NULL,
     CONSTRAINT STORE_STORETYPE_PKEY PRIMARY KEY CLUSTERED (ZKEY0 ASC)
 );
-GO
-
--- NON-CLUSTERED INDEXES
-
 CREATE NONCLUSTERED INDEX STORE_ID_STORETYPE_KEY0_IDX_STORE_STORETYPE
     ON DBO.STORE_STORETYPE (ZSTORE_ID_STORETYPE ASC, ZKEY0 ASC);
-GO
+--- select section
+select
+    zkey0,
+    zstore_chainstores_storetype,
+    zpriceliststore_retailcalcpricelisttype_storetype,
+    zpriceliststore_retailpricelisttype_storetype,
+    zstore_id_storetype,
+    zstore_name_storetype,
+    zrange_userange_storetype,
+    zstore_inactive_storetype,
+    zpricelimit_pricelimitpricelisttype_storetype,
+    zpurchase_skipcheckdaysinvoiceorderdetail_storetype,
+    zinventorysanta_instoretype_storetype,
+    zstore_storetypegroup_storetype
+from store_storetype

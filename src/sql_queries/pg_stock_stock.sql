@@ -131,38 +131,146 @@ CREATE TABLE DBO.STOCK_STOCK
     ZSALE_LASTCONSIGNMENTFORWARDER_STOCK BIGINT NULL,
     CONSTRAINT STOCK_STOCK_PKEY PRIMARY KEY CLUSTERED (ZKEY0 ASC)
 );
-GO
-
--- NON-CLUSTERED INDEXES
-
 CREATE NONCLUSTERED INDEX BIN_STOCKBINGROUP_STOCK_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZBIN_STOCKBINGROUP_STOCK ASC);
-GO
-
 CREATE NONCLUSTERED INDEX SPUTNIK_IDSTOCK_STOCK_KEY0_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSPUTNIK_IDSTOCK_STOCK ASC, ZKEY0 ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_FULLNAME_STOCK_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_FULLNAME_STOCK ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_ID_STOCK_KEY0_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_ID_STOCK ASC, ZKEY0 ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_LEGALENTITY_STOCK_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_LEGALENTITY_STOCK ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_NAME_STOCK_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_NAME_STOCK ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_PHONE_STOCK_KEY0_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_PHONE_STOCK ASC, ZKEY0 ASC);
-GO
-
 CREATE NONCLUSTERED INDEX STOCK_STOCKGROUP_STOCK_IDX_STOCK_STOCK
     ON DBO.STOCK_STOCK (ZSTOCK_STOCKGROUP_STOCK ASC);
-GO
+
+key0,
+stock_legalentity_stock,
+stock_iscompany_stock,
+stock_stockgroup_stock,
+stock_country_stock,
+stock_default_stock,
+stock_currency_stock,
+stock_explicitbatchledger_stock,
+stock_pricebatchledger_stock,
+stock_id_stock,
+repricingcommittee_repricingcommittee_stock,
+stockdocument_documentscloseddate_stock,
+purchase_dataautocloseorders_stock,
+stock_autocloseorders_stock,
+purchase_dataquantitydayscloseorders_stock,
+stock_quantitydayscloseorders_stock,
+purchasereturn_dataautocloseorders_stock,
+purchasereturn_dataquantitydayscloseorders_stock,
+sale_dataautocloseorders_stock,
+sale_dataquantitydayscloseorders_stock,
+salereturn_dataautocloseorders_stock,
+salereturn_dataquantitydayscloseorders_stock,
+orderledger_bannegativesku_stock,
+orderledger_bannegativebatch_stock,
+writeoff_writeoffcommittee_stock,
+stock_name_stock,
+purchase_datebanvaluevat_stock,
+purchase_datebanbarcode_stock,
+purchasereturn_databaseinvoicedetail_stock,
+consignment_wayofunloading_stock,
+stock_address_stock,
+stock_fullname_stock,
+consignment_loadingexecuter_stock,
+consignment_addressconsigmentlegalentity_stock,
+consignment_codeloading_stock,
+edi_datagln_stock,
+repricingcommittee_numberdisposal_stock,
+consignment_issuanceallowed_stock,
+consignment_unloadingexecuter_stock,
+stock_region_stock,
+stock_email_stock,
+consignment_issuanceexecuted_stock,
+consignment_unplegalentity_stock,
+consignment_wayofloading_stock,
+stock_language_stock,
+consignment_nameconsigmentlegalentity_stock,
+stock_phone_stock,
+stock_active_stock,
+salereports_insalereport_stock,
+importgestori_extid_stock,
+stock_dateaccountdelta_stock,
+legalentity_usesecondprice_stock,
+cashregister_startdategroupcashregister_stock,
+marketing_countstockgroups_stock,
+purchase_custodywarehouse_stock,
+_deleted_bin_grouptype_stock,
+_deleted_integration_status_stock,
+purchase_custodycontractdate_stock,
+purchase_custodycontract_stock,
+_deleted_integration_statusnote_stock,
+orderledgersanta_allownegativeshipmentsku_stock,
+orderledgersanta_allownegativeshipmentbatch_stock,
+purchasereturn_datapurchasereturnedi_stock,
+purchase_allownullterminalinvoice_stock,
+_deleted_purchase_allownullorderidetailinvoicedetail_stock,
+_deleted_purchase_allownullorderinvoice_stock,
+purchase_allownullorderidetailpurchaseinvoicedetail_stock,
+purchase_allownullorderpurchaseinvoice_stock,
+_deleted_purchasereturninvoicesanta_allownullorderidetailpurcha,
+_deleted_purchasereturninvoicesanta_allownullorderpurchaseretur,
+naturalloss_incustody_stock,
+edi_passwordedsservice_stock,
+edi_aliasedsservice_stock,
+purchase_autoderivelastcertificate_stock,
+stockreports_datainpricemonitoring_stock,
+remindersanta_checklabelslogin_stock,
+naturallossstock_datanaturallossstocktype_stock,
+sale_datasaleedi_stock,
+_deleted_edi_edsserviceedn_stock,
+edi_edsservicetopby_stock,
+edn_edsservice_stock,
+edn_passwordedsservice_stock,
+edn_aliasedsservice_stock,
+purchasereturn_allownullorderidetailpurchasereturninvoicedetail,
+purchasereturn_allownullorderpurchasereturninvoice_stock,
+iswmsintegration_exporterror_stock,
+iswmsintegration_exporterrorlog_stock,
+stock_extrastockgroup_stock,
+skuledgersanta_calculatestorageperiod_stock,
+purchase_showexpirydate_stock,
+bin_usebins_stock,
+bin_stockbingroup_stock,
+_deleted_scmmasterdata_needupdate_stock,
+_deleted_scm_needupdate_stock,
+_deleted_scm_idscm_stock,
+edi_edsfrom_stock,
+edi_edsto_stock,
+edi_edsdays_stock,
+purchase_autoderivelastcertificatecompliance_stock,
+edi_skipedi_stock,
+invoice_isalcoholforeign_stock,
+machinery_lotupload_stock,
+edi_usemaingln_stock,
+range_userange_stock,
+integration_isvpi_stock,
+purchase_skipcreatesaleorderledger_stock,
+integration_codettl_stock,
+purchase_custodianwarehouse_stock,
+purchase_datapriorityintrademand_stock,
+purchase_createsaleorderledgerchecked_stock,
+stock_district_stock,
+stock_city_stock,
+purchase_scheduleorder_stock,
+sputnik_idstock_stock,
+assortmentreport_companysupplierwarehouse_stock,
+purchase_datadenydeviationauto_stock,
+purchase_denydeviationauto_stock,
+terminalhandler_trustaccept_stock,
+terminalhandler_trustacceptpercent_stock,
+sale_lastconsignmentpayer_stock,
+sale_lastconsignmenttruck_stock,
+sale_lastconsignmentdriver_stock,
+sale_lastconsignmentwaybill_stock,
+sale_lastconsignmentissuanceexecuted_stock,
+sale_lastconsignmentforwarder_stock
+from 

@@ -1,37 +1,12 @@
 import datetime
 from utils import db_helper, common
 from utils.constants.log_levels import FINEST, INFO, SUCCESS, WARNING, EXCEPTION
-from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCES 
+from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCESS
 from typing import List, Dict, Optional
 import importlib
-import contextvars
-import functools
-
-#region session decorator
-session_container = contextvars.ContextVar('session_container', default=None)
-
-def process_task(task_name: str, lg_level: str ):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            session = common.create_session()
-            token = session_container.set(session)
-            try:
-                result = func(*args, **kwargs)
-                session["context"]["status"] = "SUCCESS"
-                return result
-            except Exception as e:
-                session["context"]["status"] = "FAILED"
-                raise
-            finally:
-                common.commit_session(session, lg_level=lg_level)
-                session_container.reset(token)
-        return wrapper
-    return decorator
-
-#endregion
-
-
+from utils.common import session_container
+from utils.decorators import process_task
+@process_task('create_refs', FINEST)
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
     try:
         common.add_log(session, 'refs/views creation', 'start common', INFO)
@@ -61,17 +36,20 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     db_helper.get_fact_table(*period_range, session)
 def check_updates() -> None:
     print('check done')
+@process_task(FINEST)
 def start_etl() -> None:
+    session = session_container.get()
     try:
-        print('start etl')
-        session['command'] = 'START ETL'
+        common.add_log(session, 'start etl', 'enter etl')
         result = upload_docs()
         #result = get_fact_table()
         #result = check_updates()
         # commit log
+        common.add_log(session, 'done etl', 'done etl', SUCCESS)
     except Exception as e:
         # common.add_log(session, 'START ETL', , )
-        print(f'exception : {e}')
+        common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
+        print(f'exception in start etl: {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     create_refs(content, aliases_only, False, session)
 def perform_command(module_name: str, command: str, args: dict[str, str]) -> None:
@@ -79,7 +57,7 @@ def perform_command(module_name: str, command: str, args: dict[str, str]) -> Non
     if callable(method): method(**args)
 def upload_docs() -> None:
     """uploads all documents. uses get_rolling_window_standard.
-    
+
         Args:
             None.
         Returns:

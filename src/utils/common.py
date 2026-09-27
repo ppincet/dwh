@@ -2,6 +2,9 @@ import datetime
 import pandas as pd
 import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
+import contextvars
+
+session_container = contextvars.ContextVar('session_container', default=None)
 
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
@@ -22,7 +25,13 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         allowed = {SUCCESS, EXCEPTION}
         return [log for log in logs if log['level'] in allowed]
     return logs
-
+def commit_session(lg_level):
+    session = session_container.get()
+    print('filter logs calling')
+    # filter_logs(session_container.get(), lg_level)
+    for msg in session['logs']:
+        print(msg)
+    print('commit session')
 def create_session(command: str = "DEFAULT") -> dict:
     """creates a session based on the provided command.
 

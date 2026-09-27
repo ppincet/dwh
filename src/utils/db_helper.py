@@ -1,7 +1,8 @@
 import pyodbc
 from config import settings
 from pathlib import Path
-from utils import common
+# from utils import common
+from utils.common import session_container, add_log
 import pandas as pd
 import re
 import csv
@@ -9,6 +10,8 @@ import time
 import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
+from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
+
 
 TASK_NAME = 'ZGETFACT'
 BATCH_SIZE = 5000
@@ -48,9 +51,11 @@ def get_conn_strings():
     }
 
 @contextmanager
-def get_system_cursors(session: dict):
+def get_system_cursors():
+    session = session_container.get()
     src_conn = None
     dst_conn = None
+    add_log(session, 'get system cursors', 'start')
     try:
         conn_strings = get_conn_strings()
         src_conn = pyodbc.connect(conn_strings['src_1cb'])
@@ -60,16 +65,23 @@ def get_system_cursors(session: dict):
         dst_cursor = dst_conn.cursor()
         yield src_cursor, dst_cursor
         dst_conn.commit()
-        # add succes log
-
+        if session:
+            add_log(session, 'get system cursors', 'done')
     except Exception as e:
         if dst_conn: dst_conn.rollback()
+        if session:
+            add_log(session, 'get system cursors',
+                        f'{e}',
+                        EXCEPTION
+                        )
+            
         print(f'session for sy cursors : {session}')
         # add failure log
         raise
     finally:
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
+#region db core
 def get_sql_statements(file_name):
     SRC_DIR = Path(__file__).resolve().parent.parent
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
@@ -256,6 +268,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         'sql_view_create': sql_view_create_statement,
         'sql_insert': sql_insert_statement,
     }
+#endregion
 def update_ref(src_cursor: pyodbc.Cursor, 
                dst_cursor: pyodbc.Cursor, 
                ref_name: str,
@@ -530,25 +543,24 @@ def create_t_accs(create_cursor: pyodbc.Cursor) -> None:
     create_cursor.execute(get_sql_statements('create_t_accs.sql')[0])
     create_cursor.execute(get_sql_statements('create_t_accs.sql')[1])
                 
-def upload_docs(p_from: str, p_to: str, session: dict) -> None:
+def upload_docs(p_from: str, p_to: str) -> None:
     #
     # there is a need to create table & view manually
     #
+    session = session_container.get()
     try:
-        with get_system_cursors(session) as (src_cursor, dst_cursor):
+        with get_system_cursors() as (src_cursor, dst_cursor):
             dst_cursor.fast_executemany = True
             create_t_accs(src_cursor)
             for doc in get_docs(session):
                 stmnts = get_sql_statements(f'{doc}.sql')
                 rows = src_cursor.execute(stmnts[0],(p_from, p_to))
-                
                 dst_cursor.execute(f'truncate table Z{doc.upper()}')
-                print('after trunc')
                 for chunk in get_data_chunks(rows):
-                    print('chunk')
+                    add_log(session, 'upd docs', 'next chunk', FINEST)
                     dst_cursor.executemany(stmnts[1],chunk)
     except Exception as e:
-        print(f'upd exception: {e}')
+        add_log(session, 'upd docs', e, EXCEPTION)
         raise
     
 
@@ -651,12 +663,15 @@ def create_acc() -> None:
     finally:
         if src_connection: src_connection.close()
         if dst_connection: dst_connection.close()
-# def check_etl_bot(session: dict) -> None:
-#     print(f'enter etl bot')
-#     try:
 
-#     except Exception as e:
-
-#         raise
+def check_etl_bot(period_from :str, period_to :str) -> None:
+    session = session_container.get()
+    try:
+        common.add_log(session, 'etl bot', 'etl bot started')
+        get_fact_table(period_from, period_to)
+        common.add_log(session, 'etl bot', 'etl bot done')
+    except Exception as e:
+        common.add_log(session, 'etl bot', f'{e}',  )
+        raise
 
 
