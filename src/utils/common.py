@@ -25,7 +25,7 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         allowed = {SUCCESS, EXCEPTION}
         return [log for log in logs if log['level'] in allowed]
     return logs
-def commit_session(lg_level):
+def commit_session(lg_level: str) -> None:
     session = session_container.get()
     print('filter logs calling')
     # filter_logs(session_container.get(), lg_level)
