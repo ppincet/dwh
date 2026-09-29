@@ -1,7 +1,7 @@
 # main entry point
 import typer
 import process
-from typing import Optional
+from typing import Optional, Literal
 from itertools import zip_longest
 
 
@@ -62,6 +62,11 @@ def init(log_type: str = typer.Option(
         "--log-type",
         help = "Log type. Options: full, medium, successfull",
     ),
+    src_type: Literal["odinass", "lsf"] = typer.Option(
+        "odinass",
+        "--src-type",
+        help='source type. values: odinass, lsf'
+    ),
     ref_list: Optional[str] = typer.Option(
         None,
         "--ref-list",
@@ -83,6 +88,7 @@ def init(log_type: str = typer.Option(
         help="creates view if set",
     ),
     period: str = typer.Option(
+        None,
         "--period",
         help="period_from(optional)  - period_to (optional)"
     )
@@ -91,8 +97,6 @@ def init(log_type: str = typer.Option(
     '''
         system init
     '''
-    # process.upload_docs()
-    # return
     refs = []
     views = []
     if ref_list:
@@ -100,18 +104,14 @@ def init(log_type: str = typer.Option(
     if view_list:
         views = [item.strip() for item in view_list.split(",") if item.strip()]
     content = dict(zip_longest(refs, views, fillvalue=None))
-    # 2do
-    # create non REF
-    # create view only
-    # process.create_refs(content, aliases_only)
-    #process.get_fact_table()
-    print(f'view only: {view_only}')
-    if view_only:
-        process.create_refs(content, aliases_only, view_only)
-    else:
-        process.do_init(content, aliases_only)
-    print('done')
-
+    if src_type == 'lsf':
+        process.create_lsf_ref(content)
+    elif src_type == 'odinass':
+        if view_only:
+            process.create_refs(content, aliases_only, view_only)
+        else:
+            process.do_init(content, aliases_only)
+    
 @app.command()
 def upd():
     '''

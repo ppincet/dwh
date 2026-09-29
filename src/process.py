@@ -33,7 +33,7 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     period_range = (
         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
     )
-    db_helper.get_fact_table(*period_range, session)
+    db_helper.get_fact_table(*period_range)
 def check_updates() -> None:
     print('check done')
 @process_task(FINEST)
@@ -47,10 +47,10 @@ def start_etl() -> None:
         # commit log
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
     except Exception as e:
-        # common.add_log(session, 'START ETL', , )
         common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
         print(f'exception in start etl: {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
+    session = session_container.get()
     create_refs(content, aliases_only, False, session)
 def perform_command(module_name: str, command: str, args: dict[str, str]) -> None:
     method = getattr(importlib.import_module(module_name), command, **args)
@@ -64,6 +64,12 @@ def upload_docs() -> None:
             None.
     """
     db_helper.upload_docs(*common.get_rolling_window_standard(True))
+@process_task(FINEST)
+def create_lsf_ref(content: Dict[str, Optional[str]]) -> None:
+    session = session_container.get()
+    for k, v in content.items():
+        print(k)
+        # db_helper.upload_lsf_ref(k)
     
     
 

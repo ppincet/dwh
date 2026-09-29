@@ -36,6 +36,14 @@ def get_conn_strings():
             'PWD' : settings.SRC_1CB_PWD,
             'TrustServerCertificate' : 'yes'
             },
+        'src_lsf' :{
+            'DRIVER' : settings.SRC_LSF_DRV,
+            'PORT' : settings.SRC_LSF_PORT,
+            'SERVER' : settings.SRC_LSF_SRV,
+            'DATABASE' : settings.SRC_LSF_DB,
+            'UID' : settings.SRC_LSF_USR,
+            'PWD' : settings.SRC_LSF_PWD,
+        },
         'dst' : {
             'DRIVER' : settings.DST_DRV,
             'PORT' : settings.DST_PORT,
@@ -47,18 +55,20 @@ def get_conn_strings():
     }    
     return {
         'src_1cb' : ";".join([f"{k}={v}" for k, v in params['src_1cb'].items()]),
+        'src_lsf' : ";".join([f"{k}={v}" for k, v in params['src_lsf'].items()]),
         'dst' : ";".join([f"{k}={v}" for k, v in params['dst'].items()]),
     }
 
 @contextmanager
-def get_system_cursors():
+def get_system_cursors(src: str):
+    print(src)
     session = session_container.get()
     src_conn = None
     dst_conn = None
     add_log(session, 'get system cursors', 'start')
     try:
         conn_strings = get_conn_strings()
-        src_conn = pyodbc.connect(conn_strings['src_1cb'])
+        src_conn = pyodbc.connect(conn_strings[src])
         dst_conn = pyodbc.connect(conn_strings['dst'])
         dst_conn.autocommit = False 
         src_cursor = src_conn.cursor()
@@ -70,11 +80,7 @@ def get_system_cursors():
     except Exception as e:
         if dst_conn: dst_conn.rollback()
         if session:
-            add_log(session, 'get system cursors',
-                        f'{e}',
-                        EXCEPTION
-                        )
-            
+            add_log(session, 'get system cursors', f'{e}', EXCEPTION)
         print(f'session for sy cursors : {session}')
         # add failure log
         raise
@@ -82,12 +88,12 @@ def get_system_cursors():
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
 #region db core
-def get_sql_statements(file_name):
+def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     SRC_DIR = Path(__file__).resolve().parent.parent
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
         sql_script = f.read()
-    return [f'{cmd.strip()};' for cmd in sql_script.split(';') if cmd.strip()]
+    return [f'{cmd.strip()};' for cmd in sql_script.split(splitter) if cmd.strip()]
 
 def get_data_chunks(cursor, batch_size=5000):
     while True:
@@ -269,6 +275,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         'sql_insert': sql_insert_statement,
     }
 #endregion
+#region odinass
 def update_ref(src_cursor: pyodbc.Cursor, 
                dst_cursor: pyodbc.Cursor, 
                ref_name: str,
@@ -307,7 +314,7 @@ def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
 def create_ref(name: str, view_name: str, aliases_only : bool, session: dict) -> None:
     try:
         statements = create_schema(name, view_name, aliases_only)
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             dst_cursor.execute(statements['sql_create'])
             dst_cursor.execute(statements['sql_buffer_create'])
             dst_cursor.execute(statements['sql_create_tempo'])
@@ -321,7 +328,7 @@ def create_ref(name: str, view_name: str, aliases_only : bool, session: dict) ->
 def update_ref_standalone(ref_name: str, view_name: str, aliases_only: bool, session: dict) -> None:
     try:
         statements = create_schema(ref_name, view_name, aliases_only)
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             update_ref(src_cursor, dst_cursor, ref_name, statements, session)
     except Exception as e:
         print(f'update ref standalone exception: {e}')
@@ -331,7 +338,7 @@ def create_view_standalone(ref_name: str, view_name: str, aliases_only: bool, se
         statements = create_schema(ref_name, view_name, aliases_only)
         print('view create')
         print(statements['sql_view_create'])
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             create_view(dst_cursor, statements['sql_view_create'])
     except Exception as e:
         print(f'create view standalone exception: {e}')
@@ -531,7 +538,7 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
 def get_docs(session: dict) -> list:
     result = []
     try:
-        with get_system_cursors(session) as (src_cursor, dst_cursor):
+        with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             dst_cursor.execute('select ZENTITY from ZENTITY where ZTYPE = 1')
             for (row,) in dst_cursor.fetchall():
                 result.append(row)
@@ -549,10 +556,11 @@ def upload_docs(p_from: str, p_to: str) -> None:
     #
     session = session_container.get()
     try:
-        with get_system_cursors() as (src_cursor, dst_cursor):
+        with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             dst_cursor.fast_executemany = True
             create_t_accs(src_cursor)
             for doc in get_docs(session):
+                add_log(session, 'upd docs', f'Z{doc.upper()}', FINEST)
                 stmnts = get_sql_statements(f'{doc}.sql')
                 rows = src_cursor.execute(stmnts[0],(p_from, p_to))
                 dst_cursor.execute(f'truncate table Z{doc.upper()}')
@@ -673,5 +681,17 @@ def check_etl_bot(period_from :str, period_to :str) -> None:
     except Exception as e:
         common.add_log(session, 'etl bot', f'{e}',  )
         raise
-
-
+#endregion
+#region lsf
+def upload_lsf_ref(ref : str) -> None:
+    session = session_container.get()
+    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+        statements = get_sql_statements(f'pg_{ref}.sql', '---')
+        for stmnt in statements[0].split(';'):
+            cleaned = stmnt.strip()
+            if not cleaned: continue
+            dst_cur.execute(stmnt)
+        src_cur.execute(statements[1])
+        for chunk in get_data_chunks(src_cur):
+            dst_cur.executemany(statements[2], chunk)
+#endregion

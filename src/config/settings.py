@@ -21,4 +21,10 @@ else:
     DST_PWD = os.environ['DST_PWD']
     DST_DB = os.environ['DST_DB']
     DST_DRV = f"{{{os.environ['DST_DRV']}}}"
+    SRC_LSF_SRV = os.environ['SRC_LSF_SRVR']
+    SRC_LSF_PORT = os.environ['SRC_LSF_PORT']
+    SRC_LSF_USR = os.environ['SRC_LSF_USR']
+    SRC_LSF_PWD = os.environ['SRC_LSF_PWD']
+    SRC_LSF_DB = os.environ['SRC_LSF_DB']
+    SRC_LSF_DRV = f"{{{os.environ['SRC_LSF_DRV']}}}"
    
