@@ -5,7 +5,7 @@ from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
 import contextvars
 
 session_container = contextvars.ContextVar('session_container', default=None)
-
+#region session
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
         Args:
@@ -26,10 +26,8 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         return [log for log in logs if log['level'] in allowed]
     return logs
 def commit_session(lg_level: str) -> None:
-    session = session_container.get()
-    print('filter logs calling')
-    # filter_logs(session_container.get(), lg_level)
-    for msg in session['logs']:
+    print(f'filter logs calling ({lg_level})')
+    for msg in filter_logs(session_container.get(), lg_level):
         print(msg)
     print('commit session')
 def create_session(command: str = "DEFAULT") -> dict:
@@ -70,6 +68,8 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
         "step_name": step_name,
         "message": message
     })
+#endregion
+#region tutti
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:
     date_str = date_str.strip()
     parts = [p.strip() for p in date_str.split('-')]
@@ -137,7 +137,7 @@ def convert_hex_to_bytes(val: str) -> bytes:
     if val_str.startswith('0x') or val_str.startswith('0X'):
         val_str = val_str[2:]
     return bytes.fromhex(val_str)
-
+#endregion
 
 #region UFO (ai detected)
 import csv
