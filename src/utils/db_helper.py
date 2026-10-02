@@ -476,7 +476,7 @@ def get_fact_table(period_from :str, period_to :str, session: dict ) -> None:
             last_rref = cp["last_rref"]
             last_lineno = cp["last_lineno"]
             total_rows = cp["total_rows"]
-            print('got cp')
+            # print('got cp')
             batch_num = 0
             start_time = time.time()
             create_t_accs(src_cursor)
@@ -694,4 +694,14 @@ def upload_lsf_ref(ref : str) -> None:
         src_cur.execute(statements[1])
         for chunk in get_data_chunks(src_cur):
             dst_cur.executemany(statements[2], chunk)
+def upload_ft(period_from: str, period_to: str):
+    last_sku = 0
+    last_id = 0
+    session = session_container.get()
+    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+        start_time = time.time()
+        while True:
+            params = (
+                
+            )
 #endregion

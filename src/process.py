@@ -69,7 +69,7 @@ def create_lsf_ref(content: Dict[str, Optional[str]]) -> None:
     session = session_container.get()
     for k, v in content.items():
         print(k)
-        # db_helper.upload_lsf_ref(k)
+        db_helper.upload_lsf_ref(k)
     
     
 
