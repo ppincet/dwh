@@ -4,8 +4,9 @@ import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
 import contextvars
 
-session_container = contextvars.ContextVar('session_container', default=None)
 #region session
+session_container = contextvars.ContextVar('session_container', default=None)
+
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
         Args:
@@ -104,10 +105,12 @@ def get_next_id(max_bytes: bytes) -> bytes:
     next_int = current_int + 1
     return next_int.to_bytes(16, byteorder='big')
 
-def get_rolling_window_standard(is_odinass: bool) -> tuple[datetime.datetime, datetime.datetime]:
-    """returns back a tuple with 1st day at midnight of prev month & current day at the end of day
+def get_rolling_window_standard(is_odinass: bool, is_lsf: bool = False) -> tuple[datetime.datetime, datetime.datetime]:
+    """returns back a tuple with 1st day at midnight of prev month & current day at the end of day for odinass
+        and day before at midnight and current end of day for lsf
         Args:
             is_odinass (bool): represents odinass year offset flag.
+            is_lsf (bool): represents lsf
         Returns:
             tuple[datetime.datetime, datetime.datetime]: a tuple containing start_date and end_date.
     """

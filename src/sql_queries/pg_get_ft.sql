@@ -36,5 +36,5 @@ WHERE 1=1
     AND (l.saleledger_date_saleledger >= s.cashregister_startdategroupcashregister_departmentstore 
         OR s.cashregister_startdategroupcashregister_departmentstore IS NULL) 
     AND (l.saleledger_date_saleledger >= '20261001') 
-        --AND l.saleledger_date_saleledger <= '202690930')
+        --AND l.saleledger_date_saleledger <= '202690930'
 order by   id, k_mat

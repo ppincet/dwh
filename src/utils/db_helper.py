@@ -1,7 +1,6 @@
 import pyodbc
 from config import settings
 from pathlib import Path
-# from utils import common
 from utils.common import session_container, add_log
 import pandas as pd
 import re
@@ -16,6 +15,7 @@ from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
 TASK_NAME = 'ZGETFACT'
 BATCH_SIZE = 5000
 
+#region db core
 cp_struct = {
     "task_name": None,
     "last_period": None,
@@ -87,7 +87,7 @@ def get_system_cursors(src: str):
     finally:
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
-#region db core
+
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     SRC_DIR = Path(__file__).resolve().parent.parent
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"

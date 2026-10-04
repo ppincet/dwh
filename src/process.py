@@ -6,6 +6,8 @@ from typing import List, Dict, Optional
 import importlib
 from utils.common import session_container
 from utils.decorators import process_task
+import json
+
 @process_task('create_refs', FINEST)
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
     try:
