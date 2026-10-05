@@ -43,8 +43,9 @@ def start_etl() -> None:
     session = session_container.get()
     try:
         common.add_log(session, 'start etl', 'enter etl')
-        result = upload_docs()
-        #result = get_fact_table()
+        # result = upload_docs()
+        # result = get_fact_table()
+        result = db_helper.upload_ft('2026-10-03 00:00:00', '2026-10-05 00:00:00')
         #result = check_updates()
         # commit log
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
