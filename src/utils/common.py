@@ -72,6 +72,7 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
 #endregion
 #region tutti
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:
+    # to 2: add, fill & use json
     date_str = date_str.strip()
     parts = [p.strip() for p in date_str.split('-')]
     

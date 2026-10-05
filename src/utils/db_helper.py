@@ -692,10 +692,10 @@ def upload_ft(period_from: str, period_to: str):
     batch_n = 0
     with get_system_cursors('src_lsf') as (src_cur, dst_cur):
         src_cur.fast_executemany = True
-        # cp = get_or_create_checkpoint(dst_cur, 
-        #                                 'LSF FACT', 
-        #                                 period_from, 
-        #                                 period_to)
+        cp = get_or_create_checkpoint(dst_cur, 
+                                        'LSF FACT', 
+                                        period_from, 
+                                        period_to)
         start_time = time.time()
         while True:
             params = (
@@ -721,16 +721,16 @@ def upload_ft(period_from: str, period_to: str):
             print(last_id)
             last_ds, last_sku = last_row[:2]
 
-            # last_tref, last_rref = last_row[:2]
-            # total_rows += len(rows)
-            # upd_cp['task_name'] = TASK_NAME 
-            # upd_cp['last_period'] = last_period
-            # upd_cp['last_tref'] = last_tref
-            # upd_cp['last_rref'] = last_rref 
-            # # upd_cp['last_lineno'] = last_lineno
-            # upd_cp['total_rows'] = total_rows
-            # upd_cp['status'] = 'IN_PROGRESS'
-            # update_checkpoint(dst_cur,  upd_cp)
+            last_tref, last_rref = last_row[:2]
+            total_rows += len(rows)
+            upd_cp['task_name'] = TASK_NAME 
+            upd_cp['last_period'] = last_period
+            upd_cp['last_tref'] = last_tref
+            upd_cp['last_rref'] = last_rref 
+            # upd_cp['last_lineno'] = last_lineno
+            upd_cp['total_rows'] = total_rows
+            upd_cp['status'] = 'IN_PROGRESS'
+            update_checkpoint(dst_cur,  upd_cp)
 
 
 #endregion

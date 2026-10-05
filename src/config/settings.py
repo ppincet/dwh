@@ -27,4 +27,6 @@ else:
     SRC_LSF_PWD = os.environ['SRC_LSF_PWD']
     SRC_LSF_DB = os.environ['SRC_LSF_DB']
     SRC_LSF_DRV = f"{{{os.environ['SRC_LSF_DRV']}}}"
+    MAX_RETRIES = os.environ['MAX_RETRIES']
+    RETRY_DELAY = os.environ['RETRY_DELAY']
    

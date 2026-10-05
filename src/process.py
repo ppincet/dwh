@@ -7,6 +7,7 @@ import importlib
 from utils.common import session_container
 from utils.decorators import process_task
 import json
+from config.settings import MAX_RETRIES, 
 
 @process_task('create_refs', FINEST)
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
@@ -32,10 +33,17 @@ def check_etl_bot():
     db_helper.check_etl_bot()
 
 def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
+    session = session_container.get()
     period_range = (
         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
     )
-    db_helper.get_fact_table(*period_range)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            common.add_log(session, 'start etl', f'get odinass fact (attempt {attempt}/({MAX_RETRIES})')
+            db_helper.get_fact_table(*period_range)
+            common.add_log(session, 'start etl', 'get oodinass fact - finished')
+        except:
+            
 def check_updates() -> None:
     print('check done')
 @process_task(FINEST)
