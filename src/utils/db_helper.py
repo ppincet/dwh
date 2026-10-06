@@ -460,6 +460,7 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
     upd_cp = cp_struct.copy()
     with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
         src_cursor.fast_executemany = True
+        dst_cursor.fast_executemany = True
         cp = get_or_create_checkpoint(dst_cursor, 
                                         TASK_NAME, 
                                         period_from, 
@@ -503,8 +504,7 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
                 update_checkpoint(dst_cursor, upd_cp)
                 break
             
-            
-            dst_cursor.fast_executemany = True
+
             
             dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], 
                                 [row[:-3] for row in rows])
