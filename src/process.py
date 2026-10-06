@@ -7,7 +7,7 @@ import importlib
 from utils.common import session_container
 from utils.decorators import process_task
 import json
-from config.settings import MAX_RETRIES, 
+# from config.settings import MAX_RETRIES, 
 
 @process_task('create_refs', FINEST)
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
@@ -32,23 +32,24 @@ def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only
 def check_etl_bot():
     db_helper.check_etl_bot()
 
-def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
-    session = session_container.get()
-    period_range = (
-        common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
-    )
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            common.add_log(session, 'start etl', f'get odinass fact (attempt {attempt}/({MAX_RETRIES})')
-            db_helper.get_fact_table(*period_range)
-            common.add_log(session, 'start etl', 'get oodinass fact - finished')
-        except:
+# def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
+#     session = session_container.get()
+#     period_range = (
+#         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
+#     )
+#     for attempt in range(1, MAX_RETRIES + 1):
+#         try:
+#             common.add_log(session, 'start etl', f'get odinass fact (attempt {attempt}/({MAX_RETRIES})')
+#             db_helper.get_fact_table(*period_range)
+#             common.add_log(session, 'start etl', 'get oodinass fact - finished')
+#         except:
             
 def check_updates() -> None:
     print('check done')
 @process_task(FINEST)
 def start_etl() -> None:
     session = session_container.get()
+    print(datetime.datetime.now())
     try:
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
@@ -57,6 +58,7 @@ def start_etl() -> None:
         #result = check_updates()
         # commit log
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
+        datetime.datetime.now()
     except Exception as e:
         common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
         print(f'exception in start etl: {e}')

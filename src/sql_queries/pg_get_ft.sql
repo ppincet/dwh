@@ -39,7 +39,7 @@ SELECT
 order by  id, sku, ds
 limit ?
 ;--- -- insert part
-truncate table ZLSF_FACT;
+--truncate table ZLSF_FACT;
 insert ZLSF_FACT (
 	ZDSID,
 	ZSKUID,
