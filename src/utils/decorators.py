@@ -1,4 +1,5 @@
 import functools
+import time
 from utils.constants.log_levels import SUCCESS, EXCEPTION, FINEST
 from utils.common import session_container, create_session, commit_session
 
@@ -20,3 +21,7 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
                 session_container.reset(token)
         return wrapper
     return decorator
+def retry_srv(task_name: str = 'PAGINATED EXTRACT', lg_level: str = FINEST):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper
