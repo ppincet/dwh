@@ -7,7 +7,7 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            session = create_session(task_name, )
+            session = create_session(task_name)
             token = session_container.set(session)
             try:
                 result = func(*args, **kwargs)
@@ -37,4 +37,5 @@ def retry_srv(retries: int = 3, delay: float = 2.0):
                     time.sleep(delay)
             raise last_exception
         return wrapper
+    return decorator
 

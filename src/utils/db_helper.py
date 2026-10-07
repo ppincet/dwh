@@ -51,6 +51,7 @@ def get_conn_strings():
             'DATABASE' : settings.DST_DB,
             'UID' : settings.DST_USR,
             'PWD' : settings.DST_PWD,
+             'TrustServerCertificate' : 'yes'
             }
     }    
     return {
@@ -294,8 +295,6 @@ def get_or_create_checkpoint(dst_cursor,
             "total_rows": row[6],
             "is_resume": True
         }    
-    dst_cursor.execute("truncate table ZFACT;") # fact table
-    dst_cursor.execute("truncate table ZFACTSTG;") # batch table
     init_tref = b'\x00' * 4
     init_rref = b'\x00' * 16
     dst_cursor.execute(get_sql_statements('upsert_log.sql')[0], (

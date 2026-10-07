@@ -2,10 +2,11 @@ import datetime
 from utils import db_helper, common
 from utils.constants.log_levels import FINEST, INFO, SUCCESS, WARNING, EXCEPTION
 from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCESS
+from config.settings import RETRY_DELAY, MAX_RETRIES
 from typing import List, Dict, Optional
 import importlib
 from utils.common import session_container
-from utils.decorators import process_task
+from utils.decorators import process_task, retry_srv
 import json
 # from config.settings import MAX_RETRIES, 
 
@@ -43,25 +44,28 @@ def check_etl_bot():
 #             db_helper.get_fact_table(*period_range)
 #             common.add_log(session, 'start etl', 'get oodinass fact - finished')
 #         except:
-            
+@retry_srv(MAX_RETRIES, RETRY_DELAY)
+@process_task('LSF FT', FINEST)
+def upload_lsf_ft(period_from: str, period_to: str):
+    db_helper.upload_ft(period_from, period_to)
 def check_updates() -> None:
     print('check done')
-@process_task(FINEST)
+@process_task('ETL PROC', FINEST)
 def start_etl() -> None:
     session = session_container.get()
     print(datetime.datetime.now())
-    try:
-        common.add_log(session, 'start etl', 'enter etl')
-        # result = upload_docs()
-        # result = get_fact_table()
-        result = db_helper.upload_ft('2026-10-01 00:00:00', '2026-10-02 00:00:00')
-        #result = check_updates()
-        # commit log
-        common.add_log(session, 'done etl', 'done etl', SUCCESS)
-        print(datetime.datetime.now())
-    except Exception as e:
-        common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
-        print(f'exception in start etl: {e}')
+    # try:
+    common.add_log(session, 'start etl', 'enter etl')
+    # result = upload_docs()
+    # result = get_fact_table()
+    upload_lsf_ft('2026-10-01 00:00:00', '2026-10-02 00:00:00')
+    #result = check_updates()
+    # commit log
+    common.add_log(session, 'done etl', 'done etl', SUCCESS)
+    print(datetime.datetime.now())
+    # except Exception as e:
+    #     common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
+    #     print(f'exception in start etl: {e}')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     session = session_container.get()
     create_refs(content, aliases_only, False, session)
