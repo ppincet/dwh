@@ -54,11 +54,11 @@ def start_etl() -> None:
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
         # result = get_fact_table()
-        result = db_helper.upload_ft('2026-10-03 00:00:00', '2026-10-05 00:00:00')
+        result = db_helper.upload_ft('2026-10-01 00:00:00', '2026-10-02 00:00:00')
         #result = check_updates()
         # commit log
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
-        datetime.datetime.now()
+        print(datetime.datetime.now())
     except Exception as e:
         common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
         print(f'exception in start etl: {e}')

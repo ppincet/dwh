@@ -21,7 +21,20 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
                 session_container.reset(token)
         return wrapper
     return decorator
-def retry_srv(task_name: str = 'PAGINATED EXTRACT', lg_level: str = FINEST):
+def retry_srv(retries: int = 3, delay: float = 2.0):
     def decorator(func):
         @functools.wraps(func)
-        def wrapper
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(1, retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt == retries: raise
+                    
+                    print(f"⚠️ [Retry] {attempt} for {retries}  ('{func.__name__}') :  {e}.")
+                    time.sleep(delay)
+            raise last_exception
+        return wrapper
+

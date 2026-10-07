@@ -274,7 +274,57 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         'sql_insert': sql_insert_statement,
     }
 #endregion
+#region pagination
+def get_or_create_checkpoint(dst_cursor, 
+                             task_name, 
+                             start_window, 
+                             end_window):
+    cp = {}
+    dst_cursor.execute(get_sql_statements('get_cp.sql')[0], 
+                    (task_name,))
+    row = dst_cursor.fetchone()
+
+    if row and row[0] == start_window and row[1] == end_window:
+        
+        return {
+            "last_period": row[2],
+            "last_tref": row[3],
+            "last_rref": row[4],
+            "last_lineno": row[5],
+            "total_rows": row[6],
+            "is_resume": True
+        }    
+    dst_cursor.execute("truncate table ZFACT;") # fact table
+    dst_cursor.execute("truncate table ZFACTSTG;") # batch table
+    init_tref = b'\x00' * 4
+    init_rref = b'\x00' * 16
+    dst_cursor.execute(get_sql_statements('upsert_log.sql')[0], (
+        task_name, start_window, end_window, start_window, init_tref, init_rref, -1,
+        task_name, start_window, end_window, start_window, init_tref, init_rref, -1
+    ))
+    cp = {
+            "last_period": start_window,
+            "last_tref": init_tref,
+            "last_rref": init_rref,
+            "last_lineno": -1,
+            "total_rows": 0,
+            "is_resume": False
+        }
+    
+    return cp
+
+def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
+    dst_cursor.execute(get_sql_statements('checkpoint_upd.sql')[0], 
+                       (cp['last_period'], 
+                        cp['last_tref'], 
+                        cp['last_rref'], 
+                        cp['last_lineno'], 
+                        cp['total_rows'], 
+                        cp['status'],
+                        cp['task_name']))
+#endregion
 #region odinass
+
 def update_ref(src_cursor: pyodbc.Cursor, 
                dst_cursor: pyodbc.Cursor, 
                ref_name: str,
@@ -404,56 +454,6 @@ def read_csv_chunks(file_path, chunk_size=200):
                 connection.execute(zenum_table.insert(), chunk)
     except Exception as e:
         print(f"Exception: {e}")
-#region pagination
-def get_or_create_checkpoint(dst_cursor, 
-                             task_name, 
-                             start_window, 
-                             end_window):
-    cp = {}
-    dst_cursor.execute(get_sql_statements('get_cp.sql')[0], 
-                    (task_name,))
-    row = dst_cursor.fetchone()
-
-    if row and row[0] == start_window and row[1] == end_window:
-        
-        return {
-            "last_period": row[2],
-            "last_tref": row[3],
-            "last_rref": row[4],
-            "last_lineno": row[5],
-            "total_rows": row[6],
-            "is_resume": True
-        }    
-    dst_cursor.execute("truncate table ZFACT;") # fact table
-    dst_cursor.execute("truncate table ZFACTSTG;") # batch table
-    init_tref = b'\x00' * 4
-    init_rref = b'\x00' * 16
-    dst_cursor.execute(get_sql_statements('upsert_log.sql')[0], (
-        task_name, start_window, end_window, start_window, init_tref, init_rref, -1,
-        task_name, start_window, end_window, start_window, init_tref, init_rref, -1
-    ))
-    cp = {
-            "last_period": start_window,
-            "last_tref": init_tref,
-            "last_rref": init_rref,
-            "last_lineno": -1,
-            "total_rows": 0,
-            "is_resume": False
-        }
-    
-    return cp
-
-def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
-    dst_cursor.execute(get_sql_statements('checkpoint_upd.sql')[0], 
-                       (cp['last_period'], 
-                        cp['last_tref'], 
-                        cp['last_rref'], 
-                        cp['last_lineno'], 
-                        cp['total_rows'], 
-                        cp['status'],
-                        cp['task_name']))
-#endregion
-
 # wo nolock (pagination)
 
 def get_fact_table(period_from :str, period_to :str ) -> None:
@@ -465,6 +465,9 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
                                         TASK_NAME, 
                                         period_from, 
                                         period_to)
+        if cp['is_resume']:
+            dst_cursor.execute("truncate table ZFACT;") # fact table
+            dst_cursor.execute("truncate table ZFACTSTG;") # batch table
         last_period = cp["last_period"]
         last_tref = cp["last_tref"]
         last_rref = cp["last_rref"]
@@ -694,8 +697,10 @@ def upload_ft(period_from: str, period_to: str):
         src_cur.fast_executemany = True
         # cp = get_or_create_checkpoint(dst_cur, 
         #                                 'LSF FACT', 
-        #                                 period_from, 
-        #                                 period_to)
+        #                                  period_from,   
+        #                                  period_to)
+        # if cp['is_resumed']:
+        #     dst_cur.execute('truncate table ZLSF_FACT')
         start_time = time.time()
         while True:
             params = (
@@ -703,7 +708,6 @@ def upload_ft(period_from: str, period_to: str):
                 period_to,
                 last_id,
                 last_sku,
-                last_ds,
                 BATCH_SIZE
             )
             batch_n += 1
@@ -713,19 +717,19 @@ def upload_ft(period_from: str, period_to: str):
             rows = src_cur.fetchall()
             middle_time = time.perf_counter()
             
-            if not rows or batch_n == 10:
+            if not rows:  # or batch_n == 10:
+                print(f'batches:{batch_n}')
                 return
             
-            dst_cur.executemany(get_sql_statements('pg_get_ft.sql', '---')[1], 
-                                [row[:-1] for row in rows])
-            print(f'''select : {time.perf_counter() - start_time}\n
-                      insert: {time.perf_counter() - middle_time}
-                    ''')
+            # dst_cur.executemany(get_sql_statements('pg_get_ft.sql', '---')[1], 
+            #                     [row[:-1] for row in rows])
+            print(f'select : {time.perf_counter() - start_time}\ninsert: {time.perf_counter() - middle_time}')
             last_row = rows[-1]
-            last_id = last_row[10]
+            print(last_row)
+            last_id = last_row[7]
             last_ds, last_sku = last_row[:2]
 
-            last_tref, last_rref = last_row[:2]
+            # last_tref, last_rref = last_row[:2]
             # total_rows += len(rows)
             # upd_cp['task_name'] = TASK_NAME 
             # upd_cp['last_period'] = last_period
