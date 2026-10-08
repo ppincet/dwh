@@ -31,6 +31,7 @@ def prepare_unified_audit_trail() -> list[dict]:
 def flush_all_sessions_to_storage():
     from utils.db_helper import flush_log_db
     prepared = prepare_unified_audit_trail()
+    print('before flush log')
     try:
         flush_log_db(prepared)
     except Exception as db_error:
@@ -43,17 +44,18 @@ def flush_all_sessions_to_storage():
                     msg=log["message"],
                     extra={
                         "session_id": log["session_id"],
-                        "task_name": log["task_name"],
+                        "task_name": log["command"],
                         "step_name": log["step_name"]
                     }
                 )
+            first_session_id = prepared[0].get("session_id", "") if prepared else ""
             audit_logger.log(
                     level=getattr(logging, EXCEPTION, logging.INFO),
                     msg='database is unreachable',
                     extra={
-                        "session_id": '',
-                        "task_name": 'etl',
-                        "step_name": 'flush'
+                        "session_id": first_session_id,
+                        "task_name": 'ETL',
+                        "step_name": 'FLUSH'
                     }
                 )
             
