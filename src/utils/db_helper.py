@@ -81,13 +81,14 @@ def get_system_cursors(src: str):
         if dst_conn: dst_conn.rollback()
         if session:
             add_log(session, 'get system cursors', f'{e}', EXCEPTION)
-        print(f'session for sy cursors : {session}')
-        # add failure log
+        # print(f'session for sy cursors : {session}')
         raise
     finally:
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
-
+def flush_log_db(logs: list[dict]):
+    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+        return 1/0
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     SRC_DIR = Path(__file__).resolve().parent.parent
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"

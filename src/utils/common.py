@@ -2,11 +2,71 @@ import datetime
 import pandas as pd
 import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
+from utils.logger import audit_logger
+# from utils.db_helper import flush_log_db
 import contextvars
+import logging
 
 #region session
 session_container = contextvars.ContextVar('session_container', default=None)
+SESSION_HISTORY = []
+def prepare_unified_audit_trail() -> list[dict]:
+    flat_logs = []
+    for session in SESSION_HISTORY:
+        session_id = session.get("session_id")
+        command = session.get("command")
+        for log in session.get("logs", []):
+            enriched_log = {
+                "session_id": session_id,
+                "command": command,
+                "timestamp": log.get("timestamp"),
+                "level": log.get("level"),
+                "step_name": log.get("step_name"),
+                "message": log.get("message")
+            }
+            flat_logs.append(enriched_log)
+    flat_logs.sort(key=lambda x: x["timestamp"])
+    return flat_logs
 
+def flush_all_sessions_to_storage():
+    from utils.db_helper import flush_log_db
+    prepared = prepare_unified_audit_trail()
+    try:
+        flush_log_db(prepared)
+    except Exception as db_error:
+        print(f"WARNING: БД недоступна ({db_error}). Переключаемся на файловый лог с ротацией.")
+        try:
+            for log in prepared:
+                print(f'log: {log}')
+                audit_logger.log(
+                    level=getattr(logging, log["level"], logging.INFO),
+                    msg=log["message"],
+                    extra={
+                        "session_id": log["session_id"],
+                        "task_name": log["task_name"],
+                        "step_name": log["step_name"]
+                    }
+                )
+            audit_logger.log(
+                    level=getattr(logging, EXCEPTION, logging.INFO),
+                    msg='database is unreachable',
+                    extra={
+                        "session_id": '',
+                        "task_name": 'etl',
+                        "step_name": 'flush'
+                    }
+                )
+            
+        except Exception as file_error:
+            error_msg = f"CRITICAL: Не удалось записать логи ни в БД, ни в файл! Ошибка файла: {file_error}, Ошибка БД: {db_error}"
+            print(error_msg, file=sys.stderr)
+            # send_emergency_alert(error_msg)
+    finally:
+        SESSION_HISTORY.clear()
+def show_sessions():
+    for idx, session in enumerate(SESSION_HISTORY, 1):
+        for i, log in enumerate(session['logs'], 1):
+                print(f'log entry: {log}')
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
         Args:
@@ -27,10 +87,11 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         return [log for log in logs if log['level'] in allowed]
     return logs
 def commit_session(lg_level: str) -> None:
-    print(f'filter logs calling ({lg_level})')
-    for msg in filter_logs(session_container.get(), lg_level):
-        print(msg)
-    print('commit session')
+    SESSION_HISTORY.append(session_container.get().copy())
+    # print(f'filter logs calling ({lg_level})')
+    # for msg in filter_logs(session_container.get(), lg_level):
+    #     print(msg)
+    # print('commit session')
 def create_session(command: str = "DEFAULT") -> dict:
     """creates a session based on the provided command.
 
@@ -63,6 +124,7 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
 
 
     """
+
     session["logs"].append({
         "timestamp": datetime.datetime.now().isoformat(),
         "level": level,

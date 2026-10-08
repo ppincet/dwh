@@ -1,8 +1,16 @@
 import functools
 import time
 from utils.constants.log_levels import SUCCESS, EXCEPTION, FINEST
-from utils.common import session_container, create_session, commit_session
+from utils.common import session_container, create_session, commit_session, flush_all_sessions_to_storage
 
+def persist_audit_trail(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        finally:
+            flush_all_sessions_to_storage()
+    return wrapper
 def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
     def decorator(func):
         @functools.wraps(func)
@@ -17,6 +25,7 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
                 session["status"] = EXCEPTION
                 raise
             finally:
+                print(f'{task_name} from decorator')
                 commit_session(lg_level)
                 session_container.reset(token)
         return wrapper
@@ -33,7 +42,7 @@ def retry_srv(retries: int = 3, delay: float = 2.0):
                     last_exception = e
                     if attempt == retries: raise
                     
-                    print(f"⚠️ [Retry] {attempt} for {retries}  ('{func.__name__}') :  {e}.")
+                    # print(f"⚠️ [Retry] {attempt} for {retries}  ('{func.__name__}') :  {e}.")
                     time.sleep(delay)
             raise last_exception
         return wrapper
