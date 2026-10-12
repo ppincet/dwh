@@ -11,7 +11,13 @@ SELECT
 			
 			CAST(d.stockdocument_number_stockdocumentledger || COALESCE(d.stockdocument_series_stockdocumentledger, '') AS character(48)) AS dok, 
 			CAST((CASE WHEN NOT lb.stock_cost_skuledger_batch = lb.stock_signedquantityactive_skuledger_batch THEN -lb.stock_cost_skuledger_batch ELSE lb.stock_cost_skuledger_batch END) AS numeric(17,3)) AS n_mat, 
-			CAST(CASE WHEN (l.stock_quantity_skuledger = 0 OR l.stock_quantity_skuledger IS NULL) THEN l.stock_signedsumactive_skuledger ELSE (CASE WHEN NOT lb.stock_cost_skuledger_batch = lb.stock_signedquantityactive_skuledger_batch THEN -lb.stock_cost_skuledger_batch ELSE lb.stock_cost_skuledger_batch END) / l.stock_quantity_skuledger * l.stock_sum_skuledger END AS numeric(17,2)) AS n_sum,
+			CAST(CASE WHEN (l.stock_quantity_skuledger = 0 OR l.stock_quantity_skuledger IS NULL) 
+				THEN l.stock_signedsumactive_skuledger 
+				ELSE (CASE WHEN NOT lb.stock_cost_skuledger_batch = lb.stock_signedquantityactive_skuledger_batch 
+							THEN -lb.stock_cost_skuledger_batch 
+							ELSE lb.stock_cost_skuledger_batch 
+						END) / l.stock_quantity_skuledger * l.stock_sum_skuledger 
+					END AS numeric(17,2)) AS n_sum,
 			COALESCE(pid.Purchase_valueRetailVAT_InvoiceDetail, sid.Sale_valueVAT_InvoiceDetail, b.Stock_valueVAT_Batch) AS value_vat, 		
 	 		COALESCE(srid.SaleReturn_invoiceSum_invoiceDetail, sid.Sale_invoiceSum_InvoiceDetail, prid.PurchaseReturn_invoiceSum_invoiceDetail, pid.Purchase_invoiceSum_invoiceDetail) AS invoice_sum,
 	 		pid.Purchase_manufacturingPrice_InvoiceDetail AS manufacturing_price,
