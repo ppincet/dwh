@@ -41,6 +41,6 @@ handler = RotatingFileHandler(
     encoding="utf-8"
 )
 
-formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] [Session: %(session_id)s] [%(task_name)s -> %(step_name)s]: %(message)s')
+formatter = logging.Formatter('[%(timestamp)s] [%(level)s] [Session: %(session_id)s] [%(task_name)s -> %(step_name)s]: %(message)s')
 handler.setFormatter(formatter)
 audit_logger.addHandler(handler)

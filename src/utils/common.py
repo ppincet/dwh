@@ -19,10 +19,10 @@ def prepare_unified_audit_trail() -> list[dict]:
             enriched_log = {
                 "session_id": session_id,
                 "command": command,
-                "timestamp": log.get("timestamp"),
-                "level": log.get("level"),
-                "step_name": log.get("step_name"),
-                "message": log.get("message")
+                "timestamp": log["timestamp"],
+                "level": log["level"],
+                "step_name": log["step_name"],
+                "message": log["message"],
             }
             flat_logs.append(enriched_log)
     flat_logs.sort(key=lambda x: x["timestamp"])
@@ -45,7 +45,9 @@ def flush_all_sessions_to_storage():
                     extra={
                         "session_id": log["session_id"],
                         "task_name": log["command"],
-                        "step_name": log["step_name"]
+                        "step_name": log["step_name"],
+                        "level": log["level"],
+                        "timestamp": log["timestamp"],
                     }
                 )
             first_session_id = prepared[0].get("session_id", "") if prepared else ""
