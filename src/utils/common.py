@@ -14,10 +14,12 @@ def prepare_unified_audit_trail() -> list[dict]:
     flat_logs = []
     for session in SESSION_HISTORY:
         session_id = session.get("session_id")
+        parent_session_id = session.get("parent_session_id")
         command = session.get("command")
         for log in session.get("logs", []):
             enriched_log = {
                 "session_id": session_id,
+                "parent_session_id": parent_session_id,
                 "command": command,
                 "timestamp": log["timestamp"],
                 "level": log["level"],
@@ -36,13 +38,16 @@ def flush_all_sessions_to_storage():
         flush_log_db(prepared)
     except Exception as db_error:
         print(f"WARNING: БД недоступна ({db_error}). Переключаемся на файловый лог с ротацией.")
+        
         try:
+
             for log in prepared:
                 print(f'log: {log}')
                 audit_logger.log(
                     level=getattr(logging, log["level"], logging.INFO),
                     msg=log["message"],
                     extra={
+                        "parent_session_id": log["parent_session_id"],
                         "session_id": log["session_id"],
                         "task_name": log["command"],
                         "step_name": log["step_name"],
@@ -56,14 +61,17 @@ def flush_all_sessions_to_storage():
                     msg='database is unreachable',
                     extra={
                         "session_id": first_session_id,
+                        "parent_session_id": None,
                         "task_name": 'ETL',
-                        "step_name": 'FLUSH'
+                        "step_name": 'FLUSH',
+                        "level": "level",
+                        "timestamp": "current_time"
                     }
                 )
             
         except Exception as file_error:
             error_msg = f"CRITICAL: Не удалось записать логи ни в БД, ни в файл! Ошибка файла: {file_error}, Ошибка БД: {db_error}"
-            print(error_msg, file=sys.stderr)
+            # print(error_msg, file=sys.stderr)
             # send_emergency_alert(error_msg)
     finally:
         SESSION_HISTORY.clear()
@@ -91,22 +99,30 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         return [log for log in logs if log['level'] in allowed]
     return logs
 def commit_session(lg_level: str) -> None:
-    SESSION_HISTORY.append(session_container.get().copy())
+    print(f'hi from commit session:{lg_level}')
+    # SESSION_HISTORY.append(session_container.get().copy())
     # print(f'filter logs calling ({lg_level})')
     # for msg in filter_logs(session_container.get(), lg_level):
     #     print(msg)
     # print('commit session')
-def create_session(command: str = "DEFAULT") -> dict:
+def create_session(command: str = "DEFAULT", parent_session_id: str = None) -> dict:
     """creates a session based on the provided command.
 
     Args:
+        parent_session_id (str): parent session. defaults to "None" (root session)
         command (str, optional): command identifier for the session. defaults to "DEFAULT".
 
     Returns:
         dict: Created session object.
     """
-    return {
+    print(f'from create session: {parent_session_id}')
+    if parent_session_id is None:
+        active_parent = session_container.get()
+        if active_parent:
+            parent_session_id = active_parent.get("session_id")
+    session = {
         "session_id": str(uuid.uuid4()),
+        "parent_session_id": parent_session_id,
         "command": command,
         "status": "RUNNING",
         "start_time": datetime.datetime.now().isoformat(),
@@ -114,6 +130,8 @@ def create_session(command: str = "DEFAULT") -> dict:
         "metrics": {},
         "logs": []
     }
+    SESSION_HISTORY.append(session)
+    return session
 
 def add_log(session: dict, step_name: str, message: str, level: str = "INFO") -> None:
     """adds an audit trail entry.
@@ -128,7 +146,7 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
 
 
     """
-
+    print(f'session from add log:{session}')
     session["logs"].append({
         "timestamp": datetime.datetime.now().isoformat(),
         "level": level,
