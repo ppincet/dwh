@@ -61,33 +61,37 @@ def get_conn_strings():
     }
 
 @contextmanager
-def get_system_cursors(src: str):
+def get_system_cursors(src: str, mode : int = 0b11):
     session = session_container.get()
     src_conn = None
     dst_conn = None
     add_log(session, 'get system cursors', 'start')
+    need_src = bool(mode & 0b01)       
+    need_dst = bool((mode >> 1) & 0b01)
     try:
         conn_strings = get_conn_strings()
-        src_conn = pyodbc.connect(conn_strings[src])
-        dst_conn = pyodbc.connect(conn_strings['dst'])
-        dst_conn.autocommit = False 
-        src_cursor = src_conn.cursor()
-        dst_cursor = dst_conn.cursor()
+        if need_src:
+            src_conn = pyodbc.connect(conn_strings[src])
+            src_cursor = src_conn.cursor()
+        if need_dst:
+            dst_conn = pyodbc.connect(conn_strings['dst'])
+            dst_conn.autocommit = False 
+            dst_cursor = dst_conn.cursor()
         yield src_cursor, dst_cursor
-        dst_conn.commit()
+        if dst_cursor:
+            dst_conn.commit()
         if session:
             add_log(session, 'get system cursors', 'done')
     except Exception as e:
         if dst_conn: dst_conn.rollback()
         if session:
             add_log(session, 'get system cursors', f'{e}', EXCEPTION)
-        # print(f'session for sy cursors : {session}')
         raise
     finally:
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
 def flush_log_db(logs: list[dict]):
-    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+    with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
         return 1/0
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     SRC_DIR = Path(__file__).resolve().parent.parent

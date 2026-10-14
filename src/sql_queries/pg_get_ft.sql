@@ -1,11 +1,12 @@
 --- -- select part
-with main_chunk as (
+with raw_chunk as (
     select 
         l.key0, 
         lb.key1 batch_id,
         ssku.key0 sid,
         s.key0 ds, 
         saleledger_valuevat_saleledger value_vat,
+        saleledger_valuevat_saleledger / (100 + saleledger_valuevat_saleledger) p_vat,
         store_id_departmentstore,
         stock_name_sku ssku,
         stock_netweight_sku * saleledger_cost_saleledger_batch netw,
@@ -21,7 +22,6 @@ with main_chunk as (
         l.saleledger_stock_saleledger,
         lb.saleledger_cost_saleledger_batch b_cost,
         lb.saleledger_cost_saleledger_batch / l.saleledger_quantity_saleledger * l.saleledger_sum_saleledger b_sum
-        
     from saleledger_saleledger l
     join saleledger_saleledgerbatch lb on lb.key0 = l.key0
     join store_departmentstore s on l.saleledger_stock_saleledger = s.key0
@@ -35,30 +35,35 @@ with main_chunk as (
            or s.cashregister_startdategroupcashregister_departmentstore is null)
       and (l.key0, lb.key1) > (?, ?)
     order by l.key0, lb.key1
-    limit ?)
+    limit ?
+),
+main_chunk as (
+    select *,
+           b_sum - b_sum * p_vat b_sum_net
+    from raw_chunk
+)
 select 
     mc.ds ds, 
     mc.sid sku,
     max(mc.barcode) barcode,
-    cast(sum(mc.b_cost) as numeric (16, 5)) qnt,
+    mc.ssku,
+    cast(max(mc.b_sum_net / mc.b_cost) as numeric(18,4)) p_price,
+    cast(sum(mc.b_cost) as numeric(16, 5)) qnt,
     cast(sum(mc.b_sum) as numeric(18,4)) r_sum,
-    cast(sum(mc.b_sum*(1-mc.value_vat/100)) as numeric(18,4)) n_sum,
-    cast(sum(mc.b_revenuec*(1+mc.value_vat/100)) as numeric(18,4)) br_sum,
-    cast(sum(mc.b_revenuec) as numeric(18,4)) bn_sum,
-    cast(max(mc.value_vat) as numeric (4,2)) vat,
+    cast(sum(mc.b_sum_net) as numeric(18,4)) n_sum,
+    cast(max(mc.value_vat) as numeric(4,2)) vat,
     cast(sum(mc.netw) as numeric(16,5)) netw,
     cast(sum(mc.grossw) as numeric(16,5)) grossw,
     cast(sum(mc.vol) as numeric(16,5)) vol,
-    cast(sum(mc.b_sum*(1-mc.value_vat/100) - mc.b_revenuec) as numeric(18, 4)) grossin,
-    cast(sum(mc.b_sum*(1-mc.value_vat/100) - mc.b_revenuec) / sum(mc.b_sum*(1-mc.value_vat/100)) 
-        as numeric(18, 4)) grossin_p,
-    cast(sum((mc.b_sum*(1-mc.value_vat/100) / mc.b_cost - p.manufacturing_price)) / sum(p.manufacturing_price)  as numeric(18, 4)) markup,
+    cast(sum(mc.b_revenuec) as numeric(18,4)) bn_sum,
+    cast(sum(mc.b_sum_net - mc.b_revenuec) as numeric(18,4)) grossin,
+    cast(sum(mc.b_sum_net - mc.b_revenuec) / sum(mc.b_sum_net) as numeric(18,4)) p_grossin,
+    cast(sum((mc.b_sum_net / mc.b_cost - p.m_price)) / sum(p.m_price) as numeric(18,4)) markup,
     mc.dt_vv _period
 from main_chunk mc
-
 join lateral (
     select 
-        stock_cost_batch manufacturing_price
+        stock_cost_batch m_price
     from stock_batch b
     where b.key0 = mc.batch_id
     limit 1
@@ -66,7 +71,7 @@ join lateral (
 group by mc.dt_vv, 
     mc.ds,
     mc.sid
-
+   
 ;--- -- insert part
 --truncate table ZLSF_FACT;
 insert ZLSF_FACT (
