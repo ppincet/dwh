@@ -42,7 +42,7 @@ def flush_all_sessions_to_storage():
         try:
 
             for log in prepared:
-                print(f'log: {log}')
+                # print(f'log: {log}')
                 audit_logger.log(
                     level=getattr(logging, log["level"], logging.INFO),
                     msg=log["message"],
@@ -64,8 +64,8 @@ def flush_all_sessions_to_storage():
                         "parent_session_id": None,
                         "task_name": 'ETL',
                         "step_name": 'FLUSH',
-                        "level": "level",
-                        "timestamp": "current_time"
+                        "level": EXCEPTION,
+                        "timestamp": datetime.datetime.now()
                     }
                 )
             
