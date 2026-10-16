@@ -6,34 +6,45 @@ create table ZLSF_DPT (
     ZSTRID nvarchar(100),
     ZDEP nvarchar(150),
     ZDEPTYP bigint,
+    ZADDR nvarchar(150),
+    ZDEPCITY bigint,
+    ZDEPDITR bigint,
     ZDEPREG bigint,
+    ZOPND date,
+    ZRENTSQ numeric(10, 2),
+    ZTOTSQ numeric(10, 2),
+    ZTMPCLD tinyint,
+    ZRENT tinyint,
+    ZIANCT tinyint,
     ZRET char(1),
-    ZACT integer,
     primary key (ZID)
 )
 ;--- -- select part
 select 
-    sds.key0 id,
+	sds.key0,
 	store_id_departmentstore dp,
-	store_id_store storeid,
+	store_id_store,
 	store_name_departmentstore sn,
-	store_storetype_store stype,
-	store_region_store region,
-	coalesce(store_retaildepartment_departmentstore::char(1), '') isretail,
-	coalesce(store_inactive_departmentstore, 0) isinactive
+	store_storetype_store,
+	ss.store_address_store,
+	store_city_store,
+	store_district_store,
+	store_region_store,
+	store_opendate_store,
+	coalesce(store_rentsquare_store, 0),
+	store_totalsquare_store,
+	coalesce(store_temporaryclosed_store, 0),
+	coalesce(store_rent_store, 0),
+	coalesce(store_inactive_departmentstore, 0),
+	coalesce(store_retaildepartment_departmentstore::char(1), '')
+	
 from store_departmentstore sds
-left join store_store ss
-on sds.store_store_departmentstore = ss.key0
+join store_store ss on sds.store_store_departmentstore = ss.key0
 
 ;--- -- insert part
 insert ZLSF_DPT (
-    ZID,
-    ZDEPID,
-    ZSTRID,
-    ZDEP,
-    ZDEPTYP,
-    ZDEPREG,
-    ZRET,
-    ZACT
+    ZID, ZDEPID, ZSTRID, ZDEP, ZDEPTYP, ZADDR, 
+    ZDEPCITY, ZDEPDITR, ZDEPREG, ZOPND, 
+    ZRENTSQ, ZTOTSQ, ZTMPCLD, ZRENT, ZIANCT, ZRET
 )
-values (?, ?, ?, ?, ?, ?, ?, ?)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
