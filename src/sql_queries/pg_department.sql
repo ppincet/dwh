@@ -12,6 +12,7 @@ create table ZLSF_DPT (
     ZDEPREG bigint,
     ZOPND date,
     ZRENTSQ numeric(10, 2),
+    ZTRDSQ numeric(10, 2),
     ZTOTSQ numeric(10, 2),
     ZTMPCLD tinyint,
     ZRENT tinyint,
@@ -29,7 +30,6 @@ with filtered as (
 		where store_datatradingsquare_departmentstore_date is not null
 )
 select 
-	f.tr_square,
 	sds.key0,
 	store_id_departmentstore dp,
 	store_id_store,
@@ -41,6 +41,7 @@ select
 	store_region_store,
 	store_opendate_store,
 	coalesce(store_rentsquare_store, 0),
+    coalesce(f.tr_square, 0),
 	store_totalsquare_store,
 	coalesce(store_temporaryclosed_store, 0),
 	coalesce(store_rent_store, 0),
@@ -55,6 +56,6 @@ left join filtered f on sds.key0= f.key0 and f.rn = 1
 insert ZLSF_DPT (
     ZID, ZDEPID, ZSTRID, ZDEP, ZDEPTYP, ZADDR, 
     ZDEPCITY, ZDEPDITR, ZDEPREG, ZOPND, 
-    ZRENTSQ, ZTOTSQ, ZTMPCLD, ZRENT, ZIANCT, ZRET
+    ZRENTSQ, ZTRDSQ, ZTOTSQ, ZTMPCLD, ZRENT, ZIANCT, ZRET
 )
 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
