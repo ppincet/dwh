@@ -20,6 +20,21 @@ create table ZLSF_DPT (
     primary key (ZID)
 )
 ;--- -- select part
+-- with filtered as (
+-- 	select
+-- 		row_number() over (partition by key0 order by key1 desc) rn,
+-- 		key0,
+-- 		store_datatradingsquare_departmentstore_date tr_square
+-- 	from store_departmentstoredate
+-- 	where store_datatradingsquare_departmentstore_date is not null
+-- )
+-- select 
+	
+-- 	tr_square
+-- from store_departmentstore ds
+-- left join filtered f on ds.key0 = f.key0
+-- where 1=1 
+-- and rn = 1
 select 
 	sds.key0,
 	store_id_departmentstore dp,
