@@ -7,7 +7,7 @@ create table ZSESSION (
     STATUS varchar(20),
     constraint PK_ZSESSION primary key  nonclustered (ID)
 );
-create clusstered index  IX_ZSESSION_P_START on ZSESSION (P_START);
+create clustered index  IX_ZSESSION_P_START on ZSESSION (P_START);
 create  nonclustered index IX_ZSESSION_PARENTID on ZSESSION (PARENTID) where PARENTID is not null;
 create nonclustered index IX_ZSESSION_STATUS on ZSESSION (STATUS, P_START) include (COMMAND, P_END);
 
