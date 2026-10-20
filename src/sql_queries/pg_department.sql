@@ -42,7 +42,7 @@ select
 	store_opendate_store,
 	coalesce(store_rentsquare_store, 0),
     coalesce(f.tr_square, 0),
-	store_totalsquare_store,
+	coalesce(store_totalsquare_store, 0),
 	coalesce(store_temporaryclosed_store, 0),
 	coalesce(store_rent_store, 0),
 	coalesce(store_inactive_departmentstore, 0),
@@ -58,4 +58,4 @@ insert ZLSF_DPT (
     ZDEPCITY, ZDEPDITR, ZDEPREG, ZOPND, 
     ZRENTSQ, ZTRDSQ, ZTOTSQ, ZTMPCLD, ZRENT, ZIANCT, ZRET
 )
-values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

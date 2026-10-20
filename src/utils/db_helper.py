@@ -10,6 +10,7 @@ import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
+import csv
 
 
 TASK_NAME = 'ZGETFACT'
@@ -743,6 +744,14 @@ def upload_ft(period_from: str, period_to: str):
             # upd_cp['total_rows'] = total_rows
             # upd_cp['status'] = 'IN_PROGRESS'
             # update_checkpoint(dst_cur,  upd_cp)
-
+    #         with open(csv_file_path, mode="w", encoding="utf-8", newline="") as f:
+    # # Разделитель можно поменять на табуляцию ('\t'), если в данных часто встречаются запятые
+    # writer = csv.writer(f, delimiter=",")
+    
+    # src_cur.execute(statements[1])
+    
+    # for chunk in get_data_chunks(src_cur):
+    #     # writerows записывает сразу весь чанк (список/кортеж строк) за один вызов
+    #     writer.writerows(chunk)
 
 #endregion
