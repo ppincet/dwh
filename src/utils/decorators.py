@@ -25,7 +25,6 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
                 session["status"] = EXCEPTION
                 raise
             finally:
-                print(f'{task_name} from decorator')
                 commit_session(lg_level)
                 session_container.reset(token)
         return wrapper
@@ -41,8 +40,6 @@ def retry_srv(retries: int = 3, delay: float = 2.0):
                 except Exception as e:
                     last_exception = e
                     if attempt == retries: raise
-                    
-                    # print(f"⚠️ [Retry] {attempt} for {retries}  ('{func.__name__}') :  {e}.")
                     time.sleep(delay)
             raise last_exception
         return wrapper

@@ -146,13 +146,14 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
 
 
     """
-    print(f'session from add log:{session}')
+    # print(f'session from add log:{session}')
     session["logs"].append({
         "timestamp": datetime.datetime.now().isoformat(),
         "level": level,
         "step_name": step_name,
         "message": message
     })
+def add_ьуекшс(session: dict, step_name: str, duration: , level: str = "INFO") -> None:
 #endregion
 #region tutti
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:

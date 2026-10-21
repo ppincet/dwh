@@ -14,12 +14,12 @@ create nonclustered index IX_ZSESSION_STATUS on ZSESSION (STATUS, P_START) inclu
 create table ZLOG (
     SESSIONID UNIQUEIDENTIFIER not null,
     COMMAND varchar(50),
-     varchar(max),
+    MSG varchar(max),
     LEVEL varchar(20)
 )
 create table ZMETRIC (
     SESSIONID UNIQUEIDENTIFIER not null,
     COMMAND varchar(50),
-    ENTRY varchar(),
+    ENTRY varchar(50),
     DURATION bigint
 )
