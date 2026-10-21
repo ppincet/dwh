@@ -10,7 +10,7 @@ import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
-import csv
+from infra import run_bcp_import
 
 
 TASK_NAME = 'ZGETFACT'

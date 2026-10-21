@@ -1,37 +1,23 @@
 import subprocess
 import sys
+from config import settings
 
 
 def run_bcp_import(
     csv_filepath: str,
     table_name: str,
-    server: str,
-    database: str,
-    user: str,
-    password: str,
     delimiter: str = "\t",
 ):
-    """Вызывает утилиту bcp для заливки CSV-файла в MS SQL Server."""
-
-    # Формируем команду bcp со всеми нужными флагами
     cmd = [
-        "bcp",
-        table_name,
-        "in",
-        csv_filepath,
-        "-c",  # Символьный режим (для текстовых/CSV файлов)
-        "-t",
-        delimiter,  
-        "-h",
-        "TABLOCK",  
-        "-S",
-        server,  
-        "-d",
-        database, 
-        "-U",
-        user,  
-        "-P",
-        password,  
+        "bcp", table_name,
+        "in", csv_filepath, # it's possible 2 hardcode it
+        "-c", 
+        "-t", delimiter, 
+        "-h", "TABLOCK",  
+        "-S", settings.DST_SRV,  
+        "-d", settings.DST_DB, 
+        "-U", settings.DST_USR, 
+        "-P", settings.DST_PWD,
     ]
 
     result = subprocess.run(
