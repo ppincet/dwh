@@ -66,9 +66,10 @@ def get_system_cursors(src: str, mode : int = 0b11):
     session = session_container.get()
     src_conn = None
     dst_conn = None
-    add_log(session, 'get system cursors', 'start')
+    add_log(session, f'get system cursors. mode {mode}', 'start')
     need_src = bool(mode & 0b01)       
     need_dst = bool((mode >> 1) & 0b01)
+    print(f'need src: {need_src}, need dst: {need_dst}')
     try:
         conn_strings = get_conn_strings()
         if need_src:
@@ -92,8 +93,11 @@ def get_system_cursors(src: str, mode : int = 0b11):
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
 def flush_log_db(logs: list[dict]):
-    with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
-        return 1/0
+    print('inside flush log db')
+    with get_system_cursors('src_lsf', 0b01) as (src_cur, dst_cur):
+        print(f'dst cur:{dst_cur}')
+        for log in logs:
+            print(log)
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -706,7 +710,6 @@ def upload_core(payload):
             last_key1,
             BATCH_SIZE
             )
-        print(params)
         batch_n += 1
         start_time = time.perf_counter()
         print(batch_n)
@@ -721,19 +724,16 @@ def upload_core(payload):
         if not rows:  # or batch_n == 2:
             print(f'batches:{batch_n}')
             return
-        # print(payload)
-        headers = [column[0] for column in payload['sc'].description]
         path = f'{SRC_DIR}/sources/4bcp/fact{payload['df']}.csv'
-        print('before bcp')
         with open(path, mode="a", encoding="utf-8", newline="") as f:
             writer = csv.writer(f, delimiter="\t")
-            writer.writerow(headers)
             writer.writerows(rows)
-        # dc.execute('delete ZLSF_FACT_STG where ZDT_V >= ? and ZDT_V < ?',
-    #             (payload['df'], payload['dt']))
+    dc.execute('delete ZLSF_FACT_STG where ZDT_V >= ? and ZDT_V < ?',
+                 (payload['df'], payload['dt']))
+    dc.commit()
     result = run_bcp_import(path, 'ZLSF_FACT_STG')
     print(result)
-    # path.unlink(missing_ok=True)
+    path.unlink(missing_ok=True)
         
 
 def upload_ft(period_from: str, period_to: str):
