@@ -153,7 +153,8 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
         "step_name": step_name,
         "message": message
     })
-def add_ьуекшс(session: dict, step_name: str, duration: , level: str = "INFO") -> None:
+# def add_metric(session: dict, step_name: str, duration: , level: str = "INFO") -> None:
+
 #endregion
 #region tutti
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:

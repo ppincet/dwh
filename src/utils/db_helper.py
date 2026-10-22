@@ -6,14 +6,14 @@ import pandas as pd
 import re
 import csv
 import time
+from datetime import datetime, timedelta
 import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
-from infra import run_bcp_import
+from utils.infra import run_bcp_import
 
-
-TASK_NAME = 'ZGETFACT'
+SRC_DIR = Path(__file__).resolve().parent.parent
 BATCH_SIZE = 5000
 
 #region db core
@@ -95,7 +95,6 @@ def flush_log_db(logs: list[dict]):
     with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
         return 1/0
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
-    SRC_DIR = Path(__file__).resolve().parent.parent
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
         sql_script = f.read()
@@ -285,7 +284,8 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
 def get_or_create_checkpoint(dst_cursor, 
                              task_name, 
                              start_window, 
-                             end_window):
+                             end_window,
+                             last_day = None):
     cp = {}
     dst_cursor.execute(get_sql_statements('get_cp.sql')[0], 
                     (task_name,))
@@ -299,12 +299,13 @@ def get_or_create_checkpoint(dst_cursor,
             "last_rref": row[4],
             "last_lineno": row[5],
             "total_rows": row[6],
+            "last_day": row[7],
             "is_resume": True
         }    
     init_tref = b'\x00' * 4
     init_rref = b'\x00' * 16
     dst_cursor.execute(get_sql_statements('upsert_log.sql')[0], (
-        task_name, start_window, end_window, start_window, init_tref, init_rref, -1,
+        task_name, start_window, end_window, start_window, init_tref, init_rref, -1, last_day,
         task_name, start_window, end_window, start_window, init_tref, init_rref, -1
     ))
     cp = {
@@ -313,7 +314,8 @@ def get_or_create_checkpoint(dst_cursor,
             "last_rref": init_rref,
             "last_lineno": -1,
             "total_rows": 0,
-            "is_resume": False
+            "last_day" : None,
+            "is_resume": False,
         }
     
     return cp
@@ -459,18 +461,18 @@ def read_csv_chunks(file_path, chunk_size=200):
                 connection.execute(zenum_table.insert(), chunk)
     except Exception as e:
         print(f"Exception: {e}")
-# wo nolock (pagination)
 
+# wo nolock (pagination)
 def get_fact_table(period_from :str, period_to :str ) -> None:
     upd_cp = cp_struct.copy()
     with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
         src_cursor.fast_executemany = True
         dst_cursor.fast_executemany = True
         cp = get_or_create_checkpoint(dst_cursor, 
-                                        TASK_NAME, 
+                                        'ZFETFACT1S', 
                                         period_from, 
                                         period_to)
-        if cp['is_resume']:
+        if not cp['is_resume']:
             dst_cursor.execute("truncate table ZFACT;") # fact table
             dst_cursor.execute("truncate table ZFACTSTG;") # batch table
         last_period = cp["last_period"]
@@ -690,49 +692,84 @@ def upload_lsf_ref(ref : str) -> None:
         src_cur.execute(statements[1])
         for chunk in get_data_chunks(src_cur):
             dst_cur.executemany(statements[2], chunk)
+def upload_core(payload):
+    last_key0 = 0
+    last_key1 = 0
+    batch_n = 0
+    dc = payload["dc"]
+    total_rows = 0
+    while True:
+        params = (
+            payload['df'],
+            payload['dt'],
+            last_key0,
+            last_key1,
+            BATCH_SIZE
+            )
+        print(params)
+        batch_n += 1
+        start_time = time.perf_counter()
+        print(batch_n)
+        payload['sc'].execute(payload['stmnt'], params)
+        rows = payload['sc'].fetchall()
+        total_rows += len(rows)
+        last_row = rows[-1]
+        last_key0, last_key1 = last_row[:2]
+        print(f'{last_key0}, {last_key1}')
+        #     middle_time = time.perf_counter()
+            
+        if not rows:  # or batch_n == 2:
+            print(f'batches:{batch_n}')
+            return
+        # print(payload)
+        headers = [column[0] for column in payload['sc'].description]
+        path = f'{SRC_DIR}/sources/4bcp/fact{payload['df']}.csv'
+        print('before bcp')
+        with open(path, mode="a", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, delimiter="\t")
+            writer.writerow(headers)
+            writer.writerows(rows)
+        # dc.execute('delete ZLSF_FACT_STG where ZDT_V >= ? and ZDT_V < ?',
+    #             (payload['df'], payload['dt']))
+    result = run_bcp_import(path, 'ZLSF_FACT_STG')
+    print(result)
+    # path.unlink(missing_ok=True)
+        
 
 def upload_ft(period_from: str, period_to: str):
-    last_sku = 0
-    last_id = 0
-    last_ds = 0
     upd_cp = cp_struct.copy()
     session = session_container.get()
+    add_log(session, 'upload', 'start')
     batch_n = 0
+    d_from = datetime.strptime(period_from, '%Y-%m-%d %H:%M:%S')
+    d_to = datetime.strptime(period_to, '%Y-%m-%d %H:%M:%S')
+    
     with get_system_cursors('src_lsf') as (src_cur, dst_cur):
         src_cur.fast_executemany = True
-        # cp = get_or_create_checkpoint(dst_cur, 
-        #                                 'LSF FACT', 
-        #                                  period_from,   
-        #                                  period_to)
-        # if cp['is_resumed']:
-        #     dst_cur.execute('truncate table ZLSF_FACT')
+        cp = get_or_create_checkpoint(dst_cur, 
+                                        'ZLSFFACT', 
+                                         period_from,   
+                                         period_to)        
+        current_date = cp['last_day'] if cp['last_day'] else d_from
         start_time = time.time()
-        while True:
-            params = (
-                period_from,
-                period_to,
-                last_id,
-                last_sku,
-                BATCH_SIZE
-            )
-            batch_n += 1
-            start_time = time.perf_counter()
-            
-            src_cur.execute(get_sql_statements('pg_get_ft.sql', '---')[0], params)
-            rows = src_cur.fetchall()
-            middle_time = time.perf_counter()
-            
-            if not rows:  # or batch_n == 10:
-                print(f'batches:{batch_n}')
-                return
-            
-            # dst_cur.executemany(get_sql_statements('pg_get_ft.sql', '---')[1], 
-            #                     [row[:-1] for row in rows])
-            print(f'select : {time.perf_counter() - start_time}\ninsert: {time.perf_counter() - middle_time}')
-            last_row = rows[-1]
-            print(last_row)
-            last_id = last_row[7]
-            last_ds, last_sku = last_row[:2]
+
+        while current_date <= d_to:
+            day_from = current_date.strftime('%Y-%m-%d')
+            next_date = current_date + timedelta(days=1)
+            day_to = next_date.strftime('%Y-%m-%d')
+            payload = {
+                'sc' : src_cur,
+                'dc' : dst_cur,
+                'df' : day_from,
+                'dt' : day_to,
+                'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[0],
+                'path' : ''
+            }   
+            upload_core(payload)
+            current_date = next_date               
+        
+            #  last_key0 = last_row[1]
+            #  last_ds, last_sku = last_row[:2]
 
             # last_tref, last_rref = last_row[:2]
             # total_rows += len(rows)

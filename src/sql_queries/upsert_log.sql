@@ -10,7 +10,8 @@ when matched then
 	            ZLSTLN = ? ,
 	            ZTOTROWS = 0,
 	            ZSTATUS = 'IN_PROGRESS',
-	            ZUPDATED = getdate()           
+	            ZUPDATED = getdate(),
+                ZLASTDAY = ?       
 when not matched then
             insert (
                 ZTASKNAME,
@@ -21,7 +22,7 @@ when not matched then
                 ZLSTRREF,
                 ZLSTLN,
                 ZTOTROWS,
-                ZSTATUS            
+                ZSTATUS
                 )
             values (?, ?, ?, ?, ?, ?, ?, 0, 'IN_PROGRESS');
 

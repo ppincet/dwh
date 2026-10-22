@@ -5,7 +5,8 @@ select
     ZLSTTREF,
     ZLSTRREF,
     ZLSTLN,
-    ZTOTROWS
+    ZTOTROWS,
+    ZLASTDAY
 from ZETLLOG
 where ZTASKNAME = ? 
     and ZSTATUS = 'IN_PROGRESS'
