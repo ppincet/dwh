@@ -32,29 +32,32 @@ def prepare_unified_audit_trail() -> list[dict]:
 
 def flush_all_sessions_to_storage():
     from utils.db_helper import flush_log_db
+    db_failed = False
     prepared = prepare_unified_audit_trail()
     print('before flush log')
     try:
         flush_log_db(prepared)
     except Exception as db_error:
         print(f"WARNING: БД недоступна ({db_error}). Переключаемся на файловый лог с ротацией.")
+        db_failed = True
         
-        try:
+    try:
+        for log in prepared:
+            # print(f'log: {log}')
+            audit_logger.log(
+                level=getattr(logging, log["level"], logging.INFO),
+                msg=log["message"],
+                extra={
+                    "parent_session_id": log["parent_session_id"],
+                    "session_id": log["session_id"],
+                    "task_name": log["command"],
+                    "step_name": log["step_name"],
+                    "level": log["level"],
+                    "timestamp": log["timestamp"],
+                }
+            )
 
-            for log in prepared:
-                # print(f'log: {log}')
-                audit_logger.log(
-                    level=getattr(logging, log["level"], logging.INFO),
-                    msg=log["message"],
-                    extra={
-                        "parent_session_id": log["parent_session_id"],
-                        "session_id": log["session_id"],
-                        "task_name": log["command"],
-                        "step_name": log["step_name"],
-                        "level": log["level"],
-                        "timestamp": log["timestamp"],
-                    }
-                )
+        if db_failed:
             first_session_id = prepared[0].get("session_id", "") if prepared else ""
             audit_logger.log(
                     level=getattr(logging, EXCEPTION, logging.INFO),
@@ -68,11 +71,10 @@ def flush_all_sessions_to_storage():
                         "timestamp": datetime.datetime.now()
                     }
                 )
-            
-        except Exception as file_error:
-            error_msg = f"CRITICAL: Не удалось записать логи ни в БД, ни в файл! Ошибка файла: {file_error}, Ошибка БД: {db_error}"
-            # print(error_msg, file=sys.stderr)
-            # send_emergency_alert(error_msg)
+    except Exception as file_error:
+        error_msg = f"CRITICAL: Не удалось записать логи ни в БД, ни в файл! Ошибка файла: {file_error}, Ошибка БД: {db_error}"
+        # print(error_msg, file=sys.stderr)
+        # send_emergency_alert(error_msg)
     finally:
         SESSION_HISTORY.clear()
 def show_sessions():
@@ -115,7 +117,6 @@ def create_session(command: str = "DEFAULT", parent_session_id: str = None) -> d
     Returns:
         dict: Created session object.
     """
-    print(f'from create session: {parent_session_id}')
     if parent_session_id is None:
         active_parent = session_container.get()
         if active_parent:

@@ -65,28 +65,37 @@ def get_conn_strings():
 def get_system_cursors(src: str, mode : int = 0b11):
     session = session_container.get()
     src_conn = None
+    src_cursor = None
     dst_conn = None
-    add_log(session, f'get system cursors. mode {mode}', 'start')
+    dst_cursor = None
+    print(f'from cursors: {session}')
+    if session:
+        add_log(session, f'get system cursors. mode {mode}', 'start')
     need_src = bool(mode & 0b01)       
     need_dst = bool((mode >> 1) & 0b01)
-    print(f'need src: {need_src}, need dst: {need_dst}')
     try:
         conn_strings = get_conn_strings()
-        if need_src:
-            src_conn = pyodbc.connect(conn_strings[src])
-            src_cursor = src_conn.cursor()
         if need_dst:
+            print('before dst')
             dst_conn = pyodbc.connect(conn_strings['dst'])
             dst_conn.autocommit = False 
             dst_cursor = dst_conn.cursor()
+            print('after dst')
+        if need_src:
+            print('before src')
+            src_conn = pyodbc.connect(conn_strings[src])
+            src_cursor = src_conn.cursor()
+            print('after src')
         yield src_cursor, dst_cursor
         if dst_cursor:
             dst_conn.commit()
         if session:
             add_log(session, 'get system cursors', 'done')
     except Exception as e:
+        print(f'from exception {e}')
         if dst_conn: dst_conn.rollback()
         if session:
+            print('add log')
             add_log(session, 'get system cursors', f'{e}', EXCEPTION)
         raise
     finally:
@@ -94,10 +103,15 @@ def get_system_cursors(src: str, mode : int = 0b11):
         if dst_conn: dst_conn.close()
 def flush_log_db(logs: list[dict]):
     print('inside flush log db')
-    with get_system_cursors('src_lsf', 0b01) as (src_cur, dst_cur):
+    print(logs)
+    with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
+        
         print(f'dst cur:{dst_cur}')
-        for log in logs:
-            print(log)
+        try:
+            for log in logs:
+                print(f'entry:{log}')
+        except Exception as e:
+            print(f'from flush: {e}')
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -743,30 +757,33 @@ def upload_ft(period_from: str, period_to: str):
     batch_n = 0
     d_from = datetime.strptime(period_from, '%Y-%m-%d %H:%M:%S')
     d_to = datetime.strptime(period_to, '%Y-%m-%d %H:%M:%S')
-    
-    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
-        src_cur.fast_executemany = True
-        cp = get_or_create_checkpoint(dst_cur, 
-                                        'ZLSFFACT', 
-                                         period_from,   
-                                         period_to)        
-        current_date = cp['last_day'] if cp['last_day'] else d_from
-        start_time = time.time()
+    try: 
+        with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+            src_cur.fast_executemany = True
+            cp = get_or_create_checkpoint(dst_cur, 
+                                            'ZLSFFACT', 
+                                            period_from,   
+                                            period_to)        
+            current_date = cp['last_day'] if cp['last_day'] else d_from
+            start_time = time.time()
 
-        while current_date <= d_to:
-            day_from = current_date.strftime('%Y-%m-%d')
-            next_date = current_date + timedelta(days=1)
-            day_to = next_date.strftime('%Y-%m-%d')
-            payload = {
-                'sc' : src_cur,
-                'dc' : dst_cur,
-                'df' : day_from,
-                'dt' : day_to,
-                'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[0],
-                'path' : ''
-            }   
-            upload_core(payload)
-            current_date = next_date               
+            while current_date <= d_to:
+                day_from = current_date.strftime('%Y-%m-%d')
+                next_date = current_date + timedelta(days=1)
+                day_to = next_date.strftime('%Y-%m-%d')
+                payload = {
+                    'sc' : src_cur,
+                    'dc' : dst_cur,
+                    'df' : day_from,
+                    'dt' : day_to,
+                    'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[0],
+                    'path' : ''
+                }   
+                upload_core(payload)
+                current_date = next_date
+    except Exception as e:               
+        add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
+        
         
             #  last_key0 = last_row[1]
             #  last_ds, last_sku = last_row[:2]
