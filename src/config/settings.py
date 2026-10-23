@@ -29,4 +29,5 @@ else:
     SRC_LSF_DRV = f"{{{os.environ['SRC_LSF_DRV']}}}"
     MAX_RETRIES = int(os.environ['MAX_RETRIES'])
     RETRY_DELAY = int(os.environ['RETRY_DELAY'])
+    BATCH_SIZE = int(os.environ['BATCH_SIZE'])
    

@@ -1,7 +1,7 @@
 import pyodbc
 from config import settings
 from pathlib import Path
-from utils.common import session_container, add_log
+from utils.common import session_container, add_log, add_metric
 import pandas as pd
 import re
 import csv
@@ -11,10 +11,10 @@ import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
-from utils.infra import run_bcp_import
+from utils.infra import run_bcp_import, get_object_size_mb
 
 SRC_DIR = Path(__file__).resolve().parent.parent
-BATCH_SIZE = 5000
+BATCH_SIZE = settings.BATCH_SIZE
 
 #region db core
 cp_struct = {
@@ -76,16 +76,16 @@ def get_system_cursors(src: str, mode : int = 0b11):
     try:
         conn_strings = get_conn_strings()
         if need_dst:
-            print('before dst')
+     
             dst_conn = pyodbc.connect(conn_strings['dst'])
             dst_conn.autocommit = False 
             dst_cursor = dst_conn.cursor()
-            print('after dst')
+     
         if need_src:
-            print('before src')
+     
             src_conn = pyodbc.connect(conn_strings[src])
             src_cursor = src_conn.cursor()
-            print('after src')
+     
         yield src_cursor, dst_cursor
         if dst_cursor:
             dst_conn.commit()
@@ -93,6 +93,7 @@ def get_system_cursors(src: str, mode : int = 0b11):
             add_log(session, 'get system cursors', 'done')
     except Exception as e:
         print(f'from exception {e}')
+        traceback.print_exc()
         if dst_conn: dst_conn.rollback()
         if session:
             print('add log')
@@ -103,15 +104,14 @@ def get_system_cursors(src: str, mode : int = 0b11):
         if dst_conn: dst_conn.close()
 def flush_log_db(logs: list[dict]):
     print('inside flush log db')
-    print(logs)
-    with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
+    # with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
         
-        print(f'dst cur:{dst_cur}')
-        try:
-            for log in logs:
-                print(f'entry:{log}')
-        except Exception as e:
-            print(f'from flush: {e}')
+        # print(f'dst cur:{dst_cur}')
+        # try:
+        #     for log in logs:
+        #         print(f'entry:{log}')
+        # except Exception as e:
+        #     print(f'from flush: {e}')
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -711,44 +711,53 @@ def upload_lsf_ref(ref : str) -> None:
         for chunk in get_data_chunks(src_cur):
             dst_cur.executemany(statements[2], chunk)
 def upload_core(payload):
+    session = session_container.get()
     last_key0 = 0
     last_key1 = 0
     batch_n = 0
     dc = payload["dc"]
     total_rows = 0
-    while True:
-        params = (
-            payload['df'],
-            payload['dt'],
-            last_key0,
-            last_key1,
-            BATCH_SIZE
-            )
-        batch_n += 1
-        start_time = time.perf_counter()
-        print(batch_n)
-        payload['sc'].execute(payload['stmnt'], params)
-        rows = payload['sc'].fetchall()
-        total_rows += len(rows)
-        last_row = rows[-1]
-        last_key0, last_key1 = last_row[:2]
-        print(f'{last_key0}, {last_key1}')
-        #     middle_time = time.perf_counter()
-            
-        if not rows:  # or batch_n == 2:
-            print(f'batches:{batch_n}')
-            return
-        path = f'{SRC_DIR}/sources/4bcp/fact{payload['df']}.csv'
-        with open(path, mode="a", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f, delimiter="\t")
-            writer.writerows(rows)
+    path = f'./bcp/fact{payload['df']}.csv'
+    add_log(session, 'bcp prepare', 'start')
+    with open(path, mode="w", encoding="utf-8", newline="") as f:
+        while True:
+            params = (
+                payload['df'],
+                payload['dt'],
+                last_key0,
+                last_key1,
+                BATCH_SIZE
+                )
+            batch_n += 1
+            start_time = time.perf_counter()
+            payload['sc'].execute(payload['stmnt'], params)
+            rows = payload['sc'].fetchall()
+            if not rows:  # or batch_n == 2:
+                break
+            # 2do - metrics
+            add_metric(session, 
+                        'batch',
+                        {
+                            "duration": round(time.perf_counter() - start_time, 2),
+                            "batch_size" : round(get_object_size_mb(rows), 2)
+                        })
+            total_rows += len(rows)
+            last_row = rows[-1]
+            last_key1, last_key0 = last_row[-2:]
+            cleaned_rows = [row[:-2] for row in rows]
+            writer = csv.writer(f, delimiter="\t", lineterminator="\n") # wo lineterminator for win !!!!!
+            writer.writerows(cleaned_rows)
+    add_log(session, 'bcp prepare', 'finish')
     dc.execute('delete ZLSF_FACT_STG where ZDT_V >= ? and ZDT_V < ?',
                  (payload['df'], payload['dt']))
     dc.commit()
+    add_log(session, 'upload', 'start bcp')
     result = run_bcp_import(path, 'ZLSF_FACT_STG')
-    print(result)
-    path.unlink(missing_ok=True)
-        
+    if result:
+        add_log(session, 'upload', 'finish bcp')
+        for entry in result.strip().splitlines()[-3:]:
+            print(f'ent:{entry}')
+        Path(path).unlink(missing_ok=True)
 
 def upload_ft(period_from: str, period_to: str):
     upd_cp = cp_struct.copy()

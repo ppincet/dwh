@@ -55,7 +55,7 @@ def start_etl() -> None:
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
         # result = get_fact_table()
-        upload_lsf_ft('2026-10-01 00:00:00', '2026-10-02 00:00:00')
+        upload_lsf_ft('2026-09-01 00:00:00', '2026-09-30 00:00:00')
         #result = check_updates()
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
         print(datetime.datetime.now())

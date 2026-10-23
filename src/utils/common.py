@@ -25,8 +25,25 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "level": log["level"],
                 "step_name": log["step_name"],
                 "message": log["message"],
+                "duration": None,
+                "batch_size": None,
             }
             flat_logs.append(enriched_log)
+        for metric in session.get('metrics', []):
+            enriched_metric = {
+                "session_id": session_id,
+                "parent_session_id": parent_session_id,
+                "command": command,
+                "timestamp": metric["timestamp"],
+                "record_type": "METRIC",  # Маркер типа записи
+                "level": metric["level"],
+                "step_name": metric["step_name"],
+                "message": None,
+                "duration": metric["duration"],
+                "batch_size": metric["batch_size"]
+            }
+            print(f'enm:{enriched_metric}')
+            flat_logs.append(enriched_metric)
     flat_logs.sort(key=lambda x: x["timestamp"])
     return flat_logs
 
@@ -34,6 +51,7 @@ def flush_all_sessions_to_storage():
     from utils.db_helper import flush_log_db
     db_failed = False
     prepared = prepare_unified_audit_trail()
+    # print(prepared)
     print('before flush log')
     try:
         flush_log_db(prepared)
@@ -56,6 +74,7 @@ def flush_all_sessions_to_storage():
                     "timestamp": log["timestamp"],
                 }
             )
+        
 
         if db_failed:
             first_session_id = prepared[0].get("session_id", "") if prepared else ""
@@ -128,7 +147,7 @@ def create_session(command: str = "DEFAULT", parent_session_id: str = None) -> d
         "status": "RUNNING",
         "start_time": datetime.datetime.now().isoformat(),
         "end_time": None,
-        "metrics": {},
+        "metrics": [],
         "logs": []
     }
     SESSION_HISTORY.append(session)
@@ -154,7 +173,17 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
         "step_name": step_name,
         "message": message
     })
-# def add_metric(session: dict, step_name: str, duration: , level: str = "INFO") -> None:
+
+def add_metric(session: dict, step_name: str, metric: dict, level: str = "INFO") -> None:
+    session['metrics'].append({
+        "timestamp": datetime.datetime.now().isoformat(),
+        "level": level,
+        "step_name": step_name,
+        "duration": metric["duration"],
+        "batch_size": metric["batch_size"],
+    })
+
+    
 
 #endregion
 #region tutti
