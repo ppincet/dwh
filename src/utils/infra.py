@@ -50,7 +50,6 @@ def run_bcp_import(
     )
 
     if result.returncode == 0:
-    
         return result.stdout
     else:
         raise RuntimeError(f"bcp failed for file {csv_filepath}")
