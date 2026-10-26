@@ -15,6 +15,7 @@ from utils.infra import run_bcp_import, get_object_size_mb
 
 SRC_DIR = Path(__file__).resolve().parent.parent
 BATCH_SIZE = settings.BATCH_SIZE
+TASK_1S_NAME = '1S FACT'
 
 #region db core
 cp_struct = {
@@ -68,9 +69,8 @@ def get_system_cursors(src: str, mode : int = 0b11):
     src_cursor = None
     dst_conn = None
     dst_cursor = None
-    print(f'from cursors: {session}')
-    if session:
-        add_log(session, f'get system cursors. mode {mode}', 'start')
+    
+    if session: add_log(session, f'get system cursors. mode {mode}', 'start')
     need_src = bool(mode & 0b01)       
     need_dst = bool((mode >> 1) & 0b01)
     try:
@@ -346,7 +346,9 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
                         cp['last_lineno'], 
                         cp['total_rows'], 
                         cp['status'],
-                        cp['task_name']))
+                        cp['last_day'],
+                        cp['task_name']
+                        ))
 #endregion
 #region odinass
 
@@ -482,12 +484,13 @@ def read_csv_chunks(file_path, chunk_size=200):
 
 # wo nolock (pagination)
 def get_fact_table(period_from :str, period_to :str ) -> None:
+    session = session_container.get()
     upd_cp = cp_struct.copy()
     with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
         src_cursor.fast_executemany = True
         dst_cursor.fast_executemany = True
         cp = get_or_create_checkpoint(dst_cursor, 
-                                        'ZFETFACT1S', 
+                                        'ZFACT1S', 
                                         period_from, 
                                         period_to)
         if not cp['is_resume']:
@@ -498,15 +501,13 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
         last_rref = cp["last_rref"]
         last_lineno = cp["last_lineno"]
         total_rows = cp["total_rows"]
-        # print('got cp')
         batch_num = 0
         start_time = time.time()
         create_t_accs(src_cursor)
-        # print(get_sql_statements('get_ft_new.sql')[0])
         dst_cursor.execute('TRUNCATE TABLE ZFACTSTG')
+        add_log(session, 'odinass fact', 'start')
         while True:
             batch_num += 1
-            print(batch_num)
             params = (
                 BATCH_SIZE,
                 BATCH_SIZE, last_period, period_to,                        
@@ -518,11 +519,11 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
                 BATCH_SIZE, last_period, last_tref, last_rref,              
                 BATCH_SIZE, last_period, last_tref, last_rref, last_lineno
             )
-            
+            start_time = time.perf_counter()
             src_cursor.execute(get_sql_statements('get_ft_new.sql')[0], params)
             rows = src_cursor.fetchall()
             if not rows:
-                upd_cp['task_name'] = TASK_NAME
+                upd_cp['task_name'] = 'ZFACT1S'
                 upd_cp['last_period'] = last_period 
                 upd_cp['last_tref'] = last_tref
                 upd_cp['last_rref'] = last_rref 
@@ -536,11 +537,17 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
             
             dst_cursor.executemany(get_sql_statements('insert_fact_table.sql')[0], 
                                 [row[:-3] for row in rows])
+            add_metric(session, 
+                        'batch',
+                        {
+                            "duration": round(time.perf_counter() - start_time, 2),
+                            "batch_size" : round(get_object_size_mb(rows), 2)
+                        })
             last_row = rows[-1]
             last_period = last_row[0]
             last_tref, last_rref, last_lineno = last_row[-3:]
             total_rows += len(rows)
-            upd_cp['task_name'] = TASK_NAME 
+            upd_cp['task_name'] = 'ZFACT1S'
             upd_cp['last_period'] =last_period
             upd_cp['last_tref'] = last_tref
             upd_cp['last_rref'] = last_rref 
@@ -710,7 +717,7 @@ def upload_lsf_ref(ref : str) -> None:
         src_cur.execute(statements[1])
         for chunk in get_data_chunks(src_cur):
             dst_cur.executemany(statements[2], chunk)
-def upload_core(payload):
+def upload_core(payload) -> int:
     session = session_container.get()
     last_key0 = 0
     last_key1 = 0
@@ -726,15 +733,14 @@ def upload_core(payload):
                 payload['dt'],
                 last_key0,
                 last_key1,
-                BATCH_SIZE
+                100000
                 )
-            batch_n += 1
+            # batch_n += 1
             start_time = time.perf_counter()
             payload['sc'].execute(payload['stmnt'], params)
             rows = payload['sc'].fetchall()
-            if not rows:  # or batch_n == 2:
+            if not rows: 
                 break
-            # 2do - metrics
             add_metric(session, 
                         'batch',
                         {
@@ -754,11 +760,10 @@ def upload_core(payload):
     add_log(session, 'upload', 'start bcp')
     result = run_bcp_import(path, 'ZLSF_FACT_STG')
     if result:
-        add_log(session, 'upload', 'finish bcp')
         for entry in result.strip().splitlines()[-3:]:
-            print(f'ent:{entry}')
-        Path(path).unlink(missing_ok=True)
-
+            add_log(session, 'bcp results', entry)
+    add_log(session, 'upload', 'finish bcp')
+    Path(path).unlink(missing_ok=True)
 def upload_ft(period_from: str, period_to: str):
     upd_cp = cp_struct.copy()
     session = session_container.get()
@@ -770,12 +775,12 @@ def upload_ft(period_from: str, period_to: str):
         with get_system_cursors('src_lsf') as (src_cur, dst_cur):
             src_cur.fast_executemany = True
             cp = get_or_create_checkpoint(dst_cur, 
-                                            'ZLSFFACT', 
+                                            'ZFACTLSF', 
                                             period_from,   
                                             period_to)        
             current_date = cp['last_day'] if cp['last_day'] else d_from
             start_time = time.time()
-
+            total_rows = 0
             while current_date <= d_to:
                 day_from = current_date.strftime('%Y-%m-%d')
                 next_date = current_date + timedelta(days=1)
@@ -786,10 +791,21 @@ def upload_ft(period_from: str, period_to: str):
                     'df' : day_from,
                     'dt' : day_to,
                     'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[0],
-                    'path' : ''
+                    'path' : '',
+                    'total_rows': total_rows
                 }   
-                upload_core(payload)
+                print(upload_core(payload))
+                # total_rows += upload_core(payload)
                 current_date = next_date
+                upd_cp['task_name'] = 'ZFACTLSF'
+                upd_cp['last_period'] = None
+                upd_cp['last_tref'] = None
+                upd_cp['last_rref'] = None
+                upd_cp['last_lineno'] = None
+                upd_cp['total_rows'] = total_rows
+                upd_cp['last_day'] = current_date
+                upd_cp['status'] = 'IN_PROGRESS'
+                update_checkpoint(dst_cur,  upd_cp)
     except Exception as e:               
         add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
         
@@ -807,14 +823,6 @@ def upload_ft(period_from: str, period_to: str):
             # upd_cp['total_rows'] = total_rows
             # upd_cp['status'] = 'IN_PROGRESS'
             # update_checkpoint(dst_cur,  upd_cp)
-    #         with open(csv_file_path, mode="w", encoding="utf-8", newline="") as f:
-    # # Разделитель можно поменять на табуляцию ('\t'), если в данных часто встречаются запятые
-    # writer = csv.writer(f, delimiter=",")
-    
-    # src_cur.execute(statements[1])
-    
-    # for chunk in get_data_chunks(src_cur):
-    #     # writerows записывает сразу весь чанк (список/кортеж строк) за один вызов
-    #     writer.writerows(chunk)
+  
 
 #endregion

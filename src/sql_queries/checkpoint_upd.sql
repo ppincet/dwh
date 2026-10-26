@@ -6,6 +6,7 @@ set
     ZLSTLN = ?,
     ZTOTROWS = ?,
     ZSTATUS = ?,
-    ZUPDATED = getdate() 
+    ZUPDATED = getdate(),
+    ZLASTDAY = ?
 
 where ZTASKNAME = ?

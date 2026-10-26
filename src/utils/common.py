@@ -40,7 +40,6 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "step_name": metric["step_name"],
                 "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]}',
             }
-            print(f'enm:{enriched_metric}')
             flat_logs.append(enriched_metric)
     flat_logs.sort(key=lambda x: x["timestamp"])
     return flat_logs

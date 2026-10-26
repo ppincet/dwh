@@ -32,8 +32,8 @@ def run_bcp_import(
         "-t", delimiter, 
         "-r", "\n", # !!!!! \r\n for win 
         "-h", "TABLOCK",  
-        "-u",
-        "-S", settings.DST_SRV,  
+        # "-S", settings.DST_SRV,  
+        "-S", 'SantaDB',
         "-d", settings.DST_DB, 
         "-U", settings.DST_USR, 
         "-P", settings.DST_PWD,
@@ -48,8 +48,15 @@ def run_bcp_import(
         text=True,  
         encoding="cp866",  
     )
-
+        
     if result.returncode == 0:
         return result.stdout
     else:
-        raise RuntimeError(f"bcp failed for file {csv_filepath}")
+        error_msg = (
+            f"bcp failed for file {csv_filepath}\n"
+            f"STDERR: {result.stderr}\n"
+            f"STDOUT: {result.stdout}"
+        )
+        raise RuntimeError(error_msg)
+        # raise RuntimeError(f"bcp failed for file {csv_filepath}")
+    
