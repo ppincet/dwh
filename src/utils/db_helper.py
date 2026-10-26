@@ -25,7 +25,8 @@ cp_struct = {
     "last_rref": None,
     "last_lineno": None,
     "total_rows": None,
-    "status": None
+    "status": None,
+    "last_day" : None,
 }
 def get_conn_strings(): 
     params = {
