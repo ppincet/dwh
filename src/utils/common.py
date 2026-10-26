@@ -25,8 +25,8 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "level": log["level"],
                 "step_name": log["step_name"],
                 "message": log["message"],
-                "duration": None,
-                "batch_size": None,
+                # "duration": None,
+                # "batch_size": None,
             }
             flat_logs.append(enriched_log)
         for metric in session.get('metrics', []):
@@ -38,9 +38,7 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "record_type": "METRIC",  # Маркер типа записи
                 "level": metric["level"],
                 "step_name": metric["step_name"],
-                "message": None,
-                "duration": metric["duration"],
-                "batch_size": metric["batch_size"]
+                "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]}',
             }
             print(f'enm:{enriched_metric}')
             flat_logs.append(enriched_metric)
