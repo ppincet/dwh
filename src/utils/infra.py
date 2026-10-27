@@ -56,9 +56,9 @@ def run_bcp_import(
             f"STDERR: {result.stderr}\n"
             f"STDOUT: {result.stdout}"
         )
-        print('------')
-        print(error_msg)
-        print('------')
+        # print('------')
+        # print(error_msg)
+        # print('------')
         raise RuntimeError(error_msg)
         # raise RuntimeError(f"bcp failed for file {csv_filepath}")
     

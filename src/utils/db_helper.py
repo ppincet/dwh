@@ -92,6 +92,8 @@ def get_system_cursors(src: str, mode : int = 0b11):
             dst_conn.commit()
         if session:
             add_log(session, 'get system cursors', 'done')
+    # 2do - add raising repeatable & non-rep exceptions
+    # except (pyodbc.ProgrammingError, pyodbc.DataError) as e:
     except Exception as e:
         print(f'from exception {e}')
         traceback.print_exc()
