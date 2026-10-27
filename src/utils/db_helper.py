@@ -54,7 +54,7 @@ def get_conn_strings():
             'DATABASE' : settings.DST_DB,
             'UID' : settings.DST_USR,
             'PWD' : settings.DST_PWD,
-             'TrustServerCertificate' : 'yes'
+            #  'TrustServerCertificate' : 'yes'
             }
     }    
     return {
@@ -305,13 +305,13 @@ def get_or_create_checkpoint(dst_cursor,
                              start_window, 
                              end_window,
                              last_day = None):
+    if isinstance(start_window, str): start_window = datetime.fromisoformat(start_window)
+    if isinstance(end_window, str): end_window = datetime.fromisoformat(end_window)
     cp = {}
     dst_cursor.execute(get_sql_statements('get_cp.sql')[0], 
-                    (task_name,))
+                    (task_name))
     row = dst_cursor.fetchone()
-
     if row and row[0] == start_window and row[1] == end_window:
-        
         return {
             "last_period": row[2],
             "last_tref": row[3],
@@ -734,7 +734,7 @@ def upload_core(payload) -> int:
                 payload['dt'],
                 last_key0,
                 last_key1,
-                100000
+                150000
                 )
             # batch_n += 1
             start_time = time.perf_counter()
@@ -765,65 +765,65 @@ def upload_core(payload) -> int:
             add_log(session, 'bcp results', entry)
     add_log(session, 'upload', 'finish bcp')
     Path(path).unlink(missing_ok=True)
-def upload_ft(period_from: str, period_to: str):
+    return total_rows
+def upload_ft(period_from: str, period_to: str, idx):
     upd_cp = cp_struct.copy()
     session = session_container.get()
     add_log(session, 'upload', 'start')
     batch_n = 0
     d_from = datetime.strptime(period_from, '%Y-%m-%d %H:%M:%S')
     d_to = datetime.strptime(period_to, '%Y-%m-%d %H:%M:%S')
-    try: 
-        with get_system_cursors('src_lsf') as (src_cur, dst_cur):
-            src_cur.fast_executemany = True
-            cp = get_or_create_checkpoint(dst_cur, 
-                                            'ZFACTLSF', 
-                                            period_from,   
-                                            period_to)        
-            current_date = cp['last_day'] if cp['last_day'] else d_from
-            start_time = time.time()
-            total_rows = 0
-            while current_date <= d_to:
-                day_from = current_date.strftime('%Y-%m-%d')
-                next_date = current_date + timedelta(days=1)
-                day_to = next_date.strftime('%Y-%m-%d')
-                payload = {
-                    'sc' : src_cur,
-                    'dc' : dst_cur,
-                    'df' : day_from,
-                    'dt' : day_to,
-                    'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[0],
-                    'path' : '',
-                    'total_rows': total_rows
-                }   
-                print(upload_core(payload))
-                # total_rows += upload_core(payload)
-                current_date = next_date
-                upd_cp['task_name'] = 'ZFACTLSF'
-                upd_cp['last_period'] = None
-                upd_cp['last_tref'] = None
-                upd_cp['last_rref'] = None
-                upd_cp['last_lineno'] = None
-                upd_cp['total_rows'] = total_rows
-                upd_cp['last_day'] = current_date
-                upd_cp['status'] = 'IN_PROGRESS'
-                update_checkpoint(dst_cur,  upd_cp)
-    except Exception as e:               
-        add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
+    # try: 
+    with get_system_cursors('src_lsf') as (src_cur, dst_cur):
+        src_cur.fast_executemany = True
+        cp = get_or_create_checkpoint(dst_cur, 
+                                        'ZFACTLSF', 
+                                        period_from,   
+                                        period_to) 
         
-        
-            #  last_key0 = last_row[1]
-            #  last_ds, last_sku = last_row[:2]
-
-            # last_tref, last_rref = last_row[:2]
-            # total_rows += len(rows)
-            # upd_cp['task_name'] = TASK_NAME 
-            # upd_cp['last_period'] = last_period
-            # upd_cp['last_tref'] = last_tref
-            # upd_cp['last_rref'] = last_rref 
-            # # upd_cp['last_lineno'] = last_lineno
-            # upd_cp['total_rows'] = total_rows
-            # upd_cp['status'] = 'IN_PROGRESS'
-            # update_checkpoint(dst_cur,  upd_cp)
-  
-
+        current_date = cp['last_day'] + timedelta(days=1) if cp['last_day'] else d_from
+        total_rows = cp['total_rows']
+        count = 0
+        while current_date <= d_to:
+            if count == 7:
+                raise RuntimeError('test bcp')
+            day_from = current_date.strftime('%Y-%m-%d')
+            next_date = current_date + timedelta(days=1)
+            day_to = next_date.strftime('%Y-%m-%d')
+            payload = {
+                'sc' : src_cur,
+                'dc' : dst_cur,
+                'df' : day_from,
+                'dt' : day_to,
+                'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[idx],
+                'total_rows': total_rows
+            }   
+            total_rows += upload_core(payload)
+            upd_cp['task_name'] = 'ZFACTLSF'
+            upd_cp['last_period'] = 0
+            upd_cp['last_tref'] = 0
+            upd_cp['last_rref'] = 0
+            upd_cp['last_lineno'] = count
+            upd_cp['total_rows'] = total_rows
+            upd_cp['last_day'] = current_date
+            upd_cp['status'] = 'IN_PROGRESS'
+            update_checkpoint(dst_cur,  upd_cp)
+            dst_cur.commit()
+            current_date = next_date
+            count += 1
+        # final cut
+        upd_cp['task_name'] = 'ZFACTLSF'
+        upd_cp['last_period'] = 0
+        upd_cp['last_tref'] = 0
+        upd_cp['last_rref'] = 0
+        upd_cp['last_lineno'] = count
+        upd_cp['total_rows'] = total_rows
+        upd_cp['last_day'] = None 
+        upd_cp['status'] = 'SUCCESS' if idx == 1 else 'IN_PROGRESS'
+        update_checkpoint(dst_cur,  upd_cp)
+            
+    # except Exception as e:               
+    #     add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
 #endregion
+# def group() -> None :
+

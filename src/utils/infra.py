@@ -33,7 +33,6 @@ def run_bcp_import(
         "-r", "\n", # !!!!! \r\n for win 
         "-h", "TABLOCK",  
         "-S", settings.DST_SRV,  
-        # "-S", 'SantaDB',
         "-d", settings.DST_DB, 
         "-U", settings.DST_USR, 
         "-P", settings.DST_PWD,
