@@ -16,8 +16,8 @@ select
         cast(lb.saleledger_cost_saleledger_batch / l.saleledger_quantity_saleledger * l.saleledger_sum_saleledger as numeric(18, 4)) b_sum,
 		    cast(sb.stock_cost_batch as decimal(18,4)) m_price,
         cast(case when l.saleledger_description_saleledger = 'Продажа за день'
-				then 581 else 580
-			end as bigint) op,
+				        then 581 else 580
+			      end as bigint) op,
      lb.key1,
      l.key0 
 

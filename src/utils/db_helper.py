@@ -77,16 +77,12 @@ def get_system_cursors(src: str, mode : int = 0b11):
     try:
         conn_strings = get_conn_strings()
         if need_dst:
-     
             dst_conn = pyodbc.connect(conn_strings['dst'])
             dst_conn.autocommit = False 
             dst_cursor = dst_conn.cursor()
-     
         if need_src:
-     
             src_conn = pyodbc.connect(conn_strings[src])
             src_cursor = src_conn.cursor()
-     
         yield src_cursor, dst_cursor
         if dst_cursor:
             dst_conn.commit()
@@ -95,11 +91,8 @@ def get_system_cursors(src: str, mode : int = 0b11):
     # 2do - add raising repeatable & non-rep exceptions
     # except (pyodbc.ProgrammingError, pyodbc.DataError) as e:
     except Exception as e:
-        print(f'from exception {e}')
-        traceback.print_exc()
         if dst_conn: dst_conn.rollback()
         if session:
-            print('add log')
             add_log(session, 'get system cursors', f'{e}', EXCEPTION)
         raise
     finally:
