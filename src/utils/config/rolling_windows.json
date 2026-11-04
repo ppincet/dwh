@@ -1,0 +1,24 @@
+{
+    "windows": [
+        {
+            "name": "odinass",
+            "months back": 1, 
+            "days ago": 1
+        },
+        {
+            "name": "lsf",
+            "months back": 0, 
+            "days ago": 3
+        },
+        {
+            "name": "qtd",
+            "months back": 3, 
+            "days ago": 1
+        },
+        {
+            "name": "full last_year_test",
+            "months back": 12, 
+            "days ago": 30
+        }
+    ]
+}

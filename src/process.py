@@ -5,7 +5,7 @@ from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCESS
 from config.settings import RETRY_DELAY, MAX_RETRIES
 from typing import List, Dict, Optional
 import importlib
-from utils.common import session_container
+from utils.common import session_container, get_rolling_window
 from utils.decorators import process_task, retry_srv, persist_audit_trail
 import json
 
@@ -52,6 +52,9 @@ def group():
 @persist_audit_trail
 @process_task('ETL PROC', FINEST)
 def start_etl() -> None:
+    print(f'odinass: {get_rolling_window('odinass')}')
+    print(f'lsf: {get_rolling_window('lsf')}')
+    return
     session = session_container.get()
     print(datetime.datetime.now())
     try:

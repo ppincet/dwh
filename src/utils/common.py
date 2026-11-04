@@ -3,10 +3,12 @@ import pandas as pd
 import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
 from utils.logger import audit_logger
+from pathlib import Path
 # from utils.db_helper import flush_log_db
 import contextvars
 import logging
-
+import json
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
 #region session
 session_container = contextvars.ContextVar('session_container', default=None)
 SESSION_HISTORY = []
@@ -218,6 +220,31 @@ def get_next_id(max_bytes: bytes) -> bytes:
 
     next_int = current_int + 1
     return next_int.to_bytes(16, byteorder='big')
+
+def get_rolling_window(
+    window_name: str, 
+    config_file: str | Path = CONFIG_DIR / "rolling_windows.json"
+) -> tuple[datetime.datetime, datetime.datetime]:
+    with Path(config_file).open('r', encoding='utf-8') as f:
+        config = json.load(f)
+    window_data = next((w for w in config.get("windows", []) if w["name"] == window_name), None)
+    months_back = window_data["months back"]
+    days_ago = window_data["days ago"]
+    is_odinass = (window_name == "odinass")
+    today = datetime.date.today()
+    year = today.year
+    month = today.month - months_back
+    while month <= 0:
+        month += 12
+        year -= 1
+    start_date = datetime.datetime(year, month, 1, 0, 0, 0)
+    target_end_date = today - datetime.timedelta(days=days_ago)
+    exclusive_end_date = target_end_date + datetime.timedelta(days=1)
+    end_date = datetime.datetime.combine(exclusive_end_date, datetime.time.min)
+    if is_odinass:
+        start_date = start_date.replace(year=start_date.year + 2000)
+        end_date = end_date.replace(year=end_date.year + 2000)
+    return start_date, end_date
 
 def get_rolling_window_standard(is_odinass: bool, delta: int = 1) -> tuple[datetime.datetime, datetime.datetime]:
     """returns back a tuple with 1st day at midnight of prev month & current day at the end of day for odinass
