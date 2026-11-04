@@ -42,11 +42,11 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     db_helper.get_fact_table(*period_range)
 
 @retry_srv(MAX_RETRIES, RETRY_DELAY)
-@process_task('LSF FT', FINEST)
+@process_task('LSF FT PART', FINEST)
 def upload_lsf_ft(period_from: str, period_to: str, idx: int):
     db_helper.upload_ft(period_from, period_to, idx)
 @retry_srv(MAX_RETRIES, RETRY_DELAY)
-@process_task('LSF FT', FINEST)
+@process_task('LSF FT GROUP', FINEST)
 def group():
     db_helper.group()
 @persist_audit_trail

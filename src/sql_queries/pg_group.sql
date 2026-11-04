@@ -1,31 +1,31 @@
-with raw_chunk as (
 select 
-	*  
-from ZLSF_FACT_STG)
-,main_chunk as (
-	select *,
-		 ZBSUM - ZBSUM * ZP_VAT ZBSUMNET
-	from raw_chunk
-)
-select
-    mc.ZDS ds, 
-	mc.ZSID,
-    max(mc.ZBARCODE) barcode,
-    cast(max(mc.ZBSUMNET / mc.ZB_COST) as numeric(18,4)) p_price,
-    cast(sum(mc.ZB_COST) as numeric(16, 5)) qnt,
-    cast(sum(mc.ZBSUM) as numeric(18,4)) r_sum,
-    cast(sum(mc.ZBSUMNET) as numeric(18,4)) n_sum,
-    cast(max(mc.ZVALUE_VAT) as numeric(4,2)) vat,
-    cast(sum(mc.ZNETW) as numeric(16,5)) netw,
-    cast(sum(mc.ZGROSSW) as numeric(16,5)) grossw,
-    cast(sum(mc.ZVOL) as numeric(16,5)) vol,
-    cast(sum(mc.ZB_REVENUEC) as numeric(18,4)) bn_sum,
-    cast(sum(mc.ZBSUMNET - mc.ZB_REVENUEC) as numeric(18,4)) grossin,
-	cast(sum(mc.ZBSUMNET - mc.ZB_REVENUEC) as  numeric(18,4)) / nullif(sum(mc.ZBSUMNET),0)  p_grossin,
-    cast(sum((mc.ZBSUMNET / mc.ZB_COST - mc.Z_PRICE)) / sum(mc.Z_PRICE) as numeric(18,4)) markup,
-    mc.ZDT_V _period
-from main_chunk mc
-group by mc.ZDT_V, 
-	mc.ZDS,
-	mc.ZSID,
-	mc.op
+	ssku,
+	mc.ds ZDS,
+	mc.sid ZSID,
+	barcode ZBARC,
+	cast(sum(n_mat) as numeric(18,4)) ZQNT,
+	cast(sum(netw) as numeric(18,4)) ZNETW,
+	cast(sum(grossw) as numeric(18,4)) ZGROSSW,
+	cast(sum(vol) as numeric(18,4)) ZVOL,
+	cast(sum(n_sum) as numeric(18,4)) ZRV_SUM,
+	cast(sum(n_sum - n_sum * r_vat /(100 + r_vat)) as numeric(18,4))  ZR_SUM,
+	cast(sum(n_sum) / sum(n_mat) as numeric(18,4)) ZRV_PRICE,
+	cast((sum(n_sum - n_sum * r_vat /(100 + r_vat))) / sum(n_mat) as numeric(18,4)) ZR_PRICE,
+	cast(sum(base + base * coalesce(base/(100+mc.b_vat),0)) as numeric(18,4)) ZBV_SUM,
+	cast(sum(base) as numeric(18,4)) ZB_SUM,
+	cast(sum(base) / sum(mc.n_mat * (1 + coalesce(b_vat, 0) / 100)) as numeric(18, 4)) ZBV_PRICE,
+	cast(sum(base) / sum(mc.n_mat) as numeric(18,4)) ZB_PRICE,
+	cast(sum(n_sum) / (sum(n_sum - n_sum * r_vat /(100 + r_vat))) - 1 as numeric(18,4)) ZVAT,
+	cast(sum(n_sum - n_sum * r_vat /(100 + r_vat) - base) as numeric(18,4)) ZGROSSIN,
+	cast(sum(n_sum - n_sum * r_vat /(100 + r_vat) - base) / sum(n_sum - n_sum * r_vat /(100 + r_vat)) as numeric(18, 4)) ZGROSSIN_P,
+	cast((sum(n_sum - n_sum * r_vat /(100 + r_vat) - base)) / sum(base) as numeric(18, 4)) ZMARKUP,
+	dt_v ZPERIOD,
+	mc.isret ZRET,
+	op ZOP
+from  mc
+group by mc.dt_v,
+	mc.ds,
+	mc.sid,
+	mc.barcode,
+	mc.op,	
+	mc.isret
