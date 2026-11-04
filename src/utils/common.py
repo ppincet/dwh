@@ -219,25 +219,25 @@ def get_next_id(max_bytes: bytes) -> bytes:
     next_int = current_int + 1
     return next_int.to_bytes(16, byteorder='big')
 
-def get_rolling_window_standard(is_odinass: bool, is_lsf: bool = False) -> tuple[datetime.datetime, datetime.datetime]:
+def get_rolling_window_standard(is_odinass: bool, delta: int = 1) -> tuple[datetime.datetime, datetime.datetime]:
     """returns back a tuple with 1st day at midnight of prev month & current day at the end of day for odinass
         and day before at midnight and current end of day for lsf
         Args:
             is_odinass (bool): represents odinass year offset flag.
-            is_lsf (bool): represents lsf
+            delta (int): represents days delta
         Returns:
             tuple[datetime.datetime, datetime.datetime]: a tuple containing start_date and end_date.
     """
     today = datetime.date.today()
     first_of_this_month = today.replace(day=1)
     first_of_prev_month_date = (
-        first_of_this_month - datetime.timedelta(days=1)
+        first_of_this_month - datetime.timedelta(delta)
     ).replace(day=1)
     start_date = datetime.datetime.combine(
         first_of_prev_month_date, datetime.time.min
     )
     end_date = datetime.datetime.combine(
-        today + datetime.timedelta(days=1), datetime.time.min
+        today + datetime.timedelta(delta), datetime.time.min
     )
 
     if is_odinass:
