@@ -1,3 +1,27 @@
+insert ZLSF_FACT (
+    ZDS,
+    ZSID,
+    ZBARC,
+    ZQNT,
+    ZNETW,
+    ZGROSSW,
+    ZVOL,
+    ZRV_SUM,
+    ZR_SUM,
+    ZRV_PRICE,
+    ZR_PRICE,
+    ZBV_SUM,
+    ZB_SUM,
+    ZBV_PRICE,
+    ZB_PRICE,
+    ZVAT,
+    ZGROSSIN,
+    ZGROSSIN_P,
+    ZMARKUP,
+    ZPERIOD,
+    ZRET,
+    ZOP
+)
 select
 	DS ZDS,
 	SID ZSID,
@@ -21,10 +45,10 @@ select
 	DT_V ZPERIOD,
 	ISRET ZRET,
 	OP ZOP
-from  ZLSF_FACT_STG
+from  ZLSF_FACT_STG f 
 group by DT_V,
 	DS,
 	SID,
-	BARCODE,
-	OP,	
-	ISRET
+	BARC,
+	OP,
+    ISRET

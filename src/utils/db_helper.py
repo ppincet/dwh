@@ -783,11 +783,7 @@ def upload_ft(period_from: str, period_to: str, idx):
         current_date = cp['last_day'] + timedelta(days=1) if cp['last_day'] else d_from
         total_rows = cp['total_rows']
         count = 0
-        # idx = 1
         while current_date <= d_to:
-            # for idx in [0, 1]:
-            # if count == 7:
-            #     raise RuntimeError('test bcp')
             day_from = current_date.strftime('%Y-%m-%d')
             next_date = current_date + timedelta(days=1)
             day_to = next_date.strftime('%Y-%m-%d')
@@ -828,9 +824,13 @@ def upload_ft(period_from: str, period_to: str, idx):
     # except Exception as e:               
     #     add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
 def group() -> None :
+    session = session_container.get()
+    add_log(session, 'upload', 'start grouping')
     with get_system_cursors('src_lsf', 2) as (_, dst_cur):
+        dst_cur.execute('truncate table ZLSF_FACT')
+        dst_cur.execute(get_sql_statements('pg_group.sql')[0])
         dst_cur.execute('truncate table ZLSF_FACT_STG')
-
+        add_log(session, 'upload', 'finish grouping')
 #endregion
 
 
