@@ -40,7 +40,7 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "record_type": "METRIC",  # Маркер типа записи
                 "level": metric["level"],
                 "step_name": metric["step_name"],
-                "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]}',
+                "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]} , rows: {metric["rows"]}',
             }
             flat_logs.append(enriched_metric)
     flat_logs.sort(key=lambda x: x["timestamp"])
@@ -180,6 +180,7 @@ def add_metric(session: dict, step_name: str, metric: dict, level: str = "INFO")
         "step_name": step_name,
         "duration": metric["duration"],
         "batch_size": metric["batch_size"],
+        "rows": metric["rows"]
     })
 
     

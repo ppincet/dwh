@@ -731,6 +731,8 @@ def upload_core(payload) -> int:
                 last_key1,
                 150000
                 )
+            if(payload['idx'] == 1):
+                print(params)
             # batch_n += 1
             start_time = time.perf_counter()
             payload['sc'].execute(payload['stmnt'], params)
@@ -741,7 +743,8 @@ def upload_core(payload) -> int:
                         'batch',
                         {
                             "duration": round(time.perf_counter() - start_time, 2),
-                            "batch_size" : round(get_object_size_mb(rows), 2)
+                            "batch_size" : round(get_object_size_mb(rows), 2),
+                            "rows" : len(rows)
                         })
             total_rows += len(rows)
             last_row = rows[-1]
@@ -749,12 +752,13 @@ def upload_core(payload) -> int:
             cleaned_rows = [row[:-2] for row in rows]
             writer = csv.writer(f, delimiter="\t", lineterminator="\n") # wo lineterminator for win !!!!!
             writer.writerows(cleaned_rows)
+            
     add_log(session, 'bcp prepare', 'finish')
-    dc.execute('delete ZLSF_FACT_STG where ZDT_V >= ? and ZDT_V < ?',
-                 (payload['df'], payload['dt']))
+    dc.execute('delete ZLSF_FACT_STG where DT_V >= ? and DT_V < ? and IDX = ?',
+                    (payload['df'], payload['dt'], payload['idx']))
     dc.commit()
     add_log(session, 'upload', 'start bcp')
-    result = run_bcp_import(path, 'ZLSF_FACT_STG')
+    result = run_bcp_import(path, f'ZLSF_FACT_STG')
     if result:
         for entry in result.strip().splitlines()[-3:]:
             add_log(session, 'bcp results', entry)
@@ -779,9 +783,11 @@ def upload_ft(period_from: str, period_to: str, idx):
         current_date = cp['last_day'] + timedelta(days=1) if cp['last_day'] else d_from
         total_rows = cp['total_rows']
         count = 0
+        # idx = 1
         while current_date <= d_to:
-            if count == 7:
-                raise RuntimeError('test bcp')
+            # for idx in [0, 1]:
+            # if count == 7:
+            #     raise RuntimeError('test bcp')
             day_from = current_date.strftime('%Y-%m-%d')
             next_date = current_date + timedelta(days=1)
             day_to = next_date.strftime('%Y-%m-%d')
@@ -791,8 +797,10 @@ def upload_ft(period_from: str, period_to: str, idx):
                 'df' : day_from,
                 'dt' : day_to,
                 'stmnt' : get_sql_statements('pg_get_ledger.sql', '---')[idx],
-                'total_rows': total_rows
+                'total_rows': total_rows,
+                'idx' : idx
             }   
+            
             total_rows += upload_core(payload)
             upd_cp['task_name'] = 'ZFACTLSF'
             upd_cp['last_period'] = 0
@@ -819,6 +827,10 @@ def upload_ft(period_from: str, period_to: str, idx):
             
     # except Exception as e:               
     #     add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
+def group() -> None :
+    with get_system_cursors('src_lsf', 2) as (_, dst_cur):
+        dst_cur.execute('truncate table ZLSF_FACT_STG')
+
 #endregion
-# def group() -> None :
+
 

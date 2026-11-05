@@ -41,10 +41,11 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     )
     db_helper.get_fact_table(*period_range)
 
-@retry_srv(MAX_RETRIES, RETRY_DELAY)
+# @retry_srv(MAX_RETRIES, RETRY_DELAY)
 @process_task('LSF FT PART', FINEST)
-def upload_lsf_ft(period_from: str, period_to: str, idx: int):
-    db_helper.upload_ft(period_from, period_to, idx)
+def upload_lsf_ft(period_from: str, period_to: str):
+    db_helper.upload_ft(period_from, period_to, 0)
+    db_helper.upload_ft(period_from, period_to, 1)
 @retry_srv(MAX_RETRIES, RETRY_DELAY)
 @process_task('LSF FT GROUP', FINEST)
 def group():
@@ -52,17 +53,14 @@ def group():
 @persist_audit_trail
 @process_task('ETL PROC', FINEST)
 def start_etl() -> None:
-    print(f'odinass: {get_rolling_window('odinass')}')
-    print(f'lsf: {get_rolling_window('lsf')}')
-    return
     session = session_container.get()
     print(datetime.datetime.now())
     try:
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
         #result = get_fact_table()
-        upload_lsf_ft('2026-10-01 00:00:00', '2026-10-01 00:00:00', 0)
-        # upload_lsf_ft('2026-10-01 00:00:00', '2026-10-01 00:00:00', 1)
+        upload_lsf_ft('2026-10-01 00:00:00', '2026-10-01 00:00:00')
+        # group()
         #result = check_updates()
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
         print(datetime.datetime.now())
