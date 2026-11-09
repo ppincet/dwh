@@ -1,6 +1,5 @@
 <#
 .SYNOPSIS
-    Скрипт-обертка для запуска Python с загрузкой параметров из .env, отловом ошибок и отправкой email.
 #>
 
 $EnvFilePath = Join-Path $PSScriptRoot ".env"
@@ -37,8 +36,6 @@ $MailTo = $SmtpUser
 $MailSubject = 'Tst'
     try {
         Send-MailMessage -SmtpServer $SmtpServer -Port $SmtpPort -Credential $Credential -UseSsl -From $SmtpUser -To $MailTo -Subject $MailSubject -Encoding ([System.Text.Encoding]::UTF8)
-                         
-        Write-Host "Письмо с уведомлением успешно отправлено." -ForegroundColor Green
     }
     catch {
         Write-Error "Не удалось отправить email: $_"
