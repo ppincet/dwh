@@ -26,10 +26,6 @@ $SmtpPort    = [int]$env:SMTP_PORT
 $SmtpUser    = $env:SMTP_USR
 $SmtpPass    = $env:SMTP_PWD
 
-Write-Host "smtp_srv : $SmtpServer"
-Write-Host "smtp_usr : $SmtpUser"
-Write-Host "smtp_pwd : $SmtpPass"
-
 $SecurePassword = ConvertTo-SecureString $SmtpPass -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ($SmtpUser, $SecurePassword)
 $MailTo = $SmtpUser
