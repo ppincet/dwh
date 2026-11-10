@@ -829,6 +829,7 @@ def group() -> None :
     with get_system_cursors('src_lsf', 2) as (_, dst_cur):
         dst_cur.execute('truncate table ZLSF_FACT')
         dst_cur.execute(get_sql_statements('pg_group.sql')[0])
+        print(f'row count:{dst_cur.rowcount}')
         dst_cur.execute('truncate table ZLSF_FACT_STG')
         add_log(session, 'upload', 'finish grouping')
 #endregion

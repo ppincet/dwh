@@ -51,7 +51,6 @@ def upload_lsf_ft(period_from: str, period_to: str):
 @process_task('ETL PROC', FINEST)
 def start_etl() -> None:
     session = session_container.get()
-    print(datetime.datetime.now())
     try:
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
@@ -59,7 +58,6 @@ def start_etl() -> None:
         upload_lsf_ft('2026-10-01 00:00:00', '2026-10-01 00:00:00')
         #result = check_updates()
         common.add_log(session, 'done etl', 'done etl', SUCCESS)
-        print(datetime.datetime.now())
     except Exception as e:
         common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
         raise

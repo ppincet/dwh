@@ -60,7 +60,6 @@ def flush_all_sessions_to_storage():
         
     try:
         for log in prepared:
-            # print(f'log: {log}')
             audit_logger.log(
                 level=getattr(logging, log["level"], logging.INFO),
                 msg=log["message"],
@@ -173,7 +172,7 @@ def add_log(session: dict, step_name: str, message: str, level: str = "INFO") ->
         "message": message
     })
 
-def add_metric(session: dict, step_name: str, metric: dict, level: str = "INFO") -> None:
+def add_metric(session: dict, step_name: str, metric: dict, level: str = "FINEST") -> None:
     session['metrics'].append({
         "timestamp": datetime.datetime.now().isoformat(),
         "level": level,
