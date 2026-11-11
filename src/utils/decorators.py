@@ -46,7 +46,12 @@ def retry_srv(retries: int = 3, delay: float = 2.0):
                     last_exception = e
                     if attempt == retries: raise
                     time.sleep(delay)
-                except ValueError as e: raise
+                except ValueError as e: 
+                    print(e)
+                    raise
+                except Exception as e:
+                    print(e)
+                    raise
             raise last_exception
         return wrapper
     return decorator

@@ -71,7 +71,7 @@ def get_system_cursors(src: str, mode : int = 0b11):
     dst_conn = None
     dst_cursor = None
     
-    if session: add_log(session, f'get system cursors. mode {mode}', 'start')
+    if session: add_log(session, f'get system cursors. mode {mode}', 'start', FINEST)
     need_src = bool(mode & 0b01)       
     need_dst = bool((mode >> 1) & 0b01)
     try:
@@ -87,7 +87,7 @@ def get_system_cursors(src: str, mode : int = 0b11):
         if dst_cursor:
             dst_conn.commit()
         if session:
-            add_log(session, 'get system cursors', 'done')
+            add_log(session, 'get system cursors', 'done', FINEST)
     # 2do - add raising repeatable & non-rep exceptions
     # except (pyodbc.ProgrammingError, pyodbc.DataError) as e:
     except Exception as e:

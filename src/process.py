@@ -53,7 +53,7 @@ def start_etl(lg_lvl) -> None:
     session = session_container.get()
     try:
         print('start etl')
-        common.add_log(session, 'start etl', 'enter etl')
+        # common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
         #result = get_fact_table()
         upload_lsf_ft('2026-10-01 00:00:00', '2026-10-01 00:00:00')
