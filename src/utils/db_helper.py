@@ -99,15 +99,17 @@ def get_system_cursors(src: str, mode : int = 0b11):
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
 def flush_log_db(logs: list[dict]):
+    # raise RuntimeError(':-)')
     print('inside flush log db')
     # with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
         
         # print(f'dst cur:{dst_cur}')
-        # try:
-        #     for log in logs:
-        #         print(f'entry:{log}')
-        # except Exception as e:
-        #     print(f'from flush: {e}')
+    try:
+        for log in logs['metrics']:
+            for entry in log:
+                print(f'entry:{entry}')
+    except Exception as e:
+        print(f'from flush: {e}')
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -731,9 +733,6 @@ def upload_core(payload) -> int:
                 last_key1,
                 150000
                 )
-            if(payload['idx'] == 1):
-                print(params)
-            # batch_n += 1
             start_time = time.perf_counter()
             payload['sc'].execute(payload['stmnt'], params)
             rows = payload['sc'].fetchall()

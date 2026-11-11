@@ -61,6 +61,7 @@ function Load-EnvFile {
     }
 }
 
+
 Load-EnvFile -Path $EnvFilePath
 
 $SmtpServer  = $env:SMTP_SRVR
@@ -76,11 +77,16 @@ $MailSubject = 'Tst'
 Write-EtlLog -Message "Старт проверки отправки почты" -Level "INFO"
 
 try {
-    Send-MailMessage -SmtpServer $SmtpServer -Port $SmtpPort -Credential $Credential -UseSsl -From $SmtpUser -To $MailTo -Subject $MailSubject -Encoding ([System.Text.Encoding]::UTF8)
-    Write-EtlLog -Message "Письмо успешно отправлено" -Level "INFO"
+    $pyOutput = .venv/bin/python3 src/etl.py daily --log-level DEBUG # 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $errMsg = "etl process failed: $pyOutput"
+        # Write-EtlLog -Message $errMsg -Level "ERROR"    
+    }
+    # Send-MailMessage -SmtpServer $SmtpServer -Port $SmtpPort -Credential $Credential -UseSsl -From $SmtpUser -To $MailTo -Subject $MailSubject -Encoding ([System.Text.Encoding]::UTF8)
+    # Write-EtlLog -Message "email was sent" -Level "INFO"
 }
 catch {
-    $errMsg = "Ошибка отправки email: $_"
+    $errMsg = "email sending failed: $_"
     Write-EtlLog -Message $errMsg -Level "ERROR"
     throw $_
 }

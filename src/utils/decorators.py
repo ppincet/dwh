@@ -2,6 +2,7 @@ import functools
 import time
 from utils.constants.log_levels import SUCCESS, EXCEPTION, FINEST
 from utils.common import session_container, create_session, commit_session, flush_all_sessions_to_storage
+import inspect
 
 def persist_audit_trail(func):
     @functools.wraps(func)
@@ -11,13 +12,17 @@ def persist_audit_trail(func):
         finally:
             flush_all_sessions_to_storage()
     return wrapper
-def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
+def process_task(task_name : str = 'ETL PROC'):
     def decorator(func):
+        sig = inspect.signature(func)
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             session = create_session(task_name)
             token = session_container.set(session)
+            bound_args = sig.bind(*args, **kwargs)
+            bound_args.apply_defaults()
             try:
+                lg_lvl = bound_args.arguments.get('lg_lvl', FINEST)
                 result = func(*args, **kwargs)
                 session["status"] = SUCCESS
                 return result
@@ -25,7 +30,7 @@ def process_task(task_name : str = 'ETL PROC', lg_level: str = FINEST):
                 session["status"] = EXCEPTION
                 raise
             finally:
-                commit_session(lg_level)
+                commit_session(lg_lvl)
                 session_container.reset(token)
         return wrapper
     return decorator

@@ -1,8 +1,8 @@
 # main entry point
 import typer
 import process
+import sys
 from typing import Optional, Literal
-from itertools import zip_longest
 
 
 app = typer.Typer(
@@ -24,14 +24,14 @@ def manual(period: str = typer.Option(
 
 @app.command()
 def daily(log_type: Optional[str] = typer.Option(
-        "full",
+        "FULL",
         "--log-level",
         help="log level",
     ),
     ):
         # process.check_etl_bot()
         # return
-        process.start_etl()
+        process.start_etl(log_type)
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def custom(
@@ -119,6 +119,11 @@ def upd():
     '''
     typer.echo('upd done')
 if __name__ == "__main__": app()
+    # try:
+    #     app()
+    # except Exception as e:
+    #     print(e, file=sys.stderr)
+    #     sys.exit(-1)
     
 
   

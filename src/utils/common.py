@@ -4,7 +4,6 @@ import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
 from utils.logger import audit_logger
 from pathlib import Path
-# from utils.db_helper import flush_log_db
 import contextvars
 import logging
 import json
@@ -12,8 +11,12 @@ CONFIG_DIR = Path(__file__).resolve().parent / "config"
 #region session
 session_container = contextvars.ContextVar('session_container', default=None)
 SESSION_HISTORY = []
+    
 def prepare_unified_audit_trail() -> list[dict]:
-    flat_logs = []
+    payload = {
+        'flat' : [],
+        'metrics' : [],
+    }
     for session in SESSION_HISTORY:
         session_id = session.get("session_id")
         parent_session_id = session.get("parent_session_id")
@@ -24,42 +27,43 @@ def prepare_unified_audit_trail() -> list[dict]:
                 "parent_session_id": parent_session_id,
                 "command": command,
                 "timestamp": log["timestamp"],
+                "record_type": "LOG",
                 "level": log["level"],
                 "step_name": log["step_name"],
                 "message": log["message"],
-                # "duration": None,
-                # "batch_size": None,
             }
-            flat_logs.append(enriched_log)
+            payload['flat'].append(enriched_log)
         for metric in session.get('metrics', []):
             enriched_metric = {
                 "session_id": session_id,
                 "parent_session_id": parent_session_id,
                 "command": command,
                 "timestamp": metric["timestamp"],
-                "record_type": "METRIC",  # Маркер типа записи
+                "record_type": "METRIC", 
                 "level": metric["level"],
                 "step_name": metric["step_name"],
                 "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]} , rows: {metric["rows"]}',
             }
-            flat_logs.append(enriched_metric)
-    flat_logs.sort(key=lambda x: x["timestamp"])
-    return flat_logs
+            payload['flat'].append(enriched_metric)
+        payload['metrics'].append(session.get('metrics', []))
+    payload['flat'].sort(key=lambda x: x["timestamp"])
+    return payload
 
 def flush_all_sessions_to_storage():
     from utils.db_helper import flush_log_db
     db_failed = False
     prepared = prepare_unified_audit_trail()
-    # print(prepared)
-    print('before flush log')
+    flat = prepared['flat']
+    
     try:
         flush_log_db(prepared)
     except Exception as db_error:
-        print(f"WARNING: БД недоступна ({db_error}). Переключаемся на файловый лог с ротацией.")
+        print(db_error)
+        db_msg = str(db_error)
         db_failed = True
         
     try:
-        for log in prepared:
+        for log in flat:
             audit_logger.log(
                 level=getattr(logging, log["level"], logging.INFO),
                 msg=log["message"],
@@ -76,6 +80,7 @@ def flush_all_sessions_to_storage():
 
         if db_failed:
             first_session_id = prepared[0].get("session_id", "") if prepared else ""
+            # raise RuntimeError('!')
             audit_logger.log(
                     level=getattr(logging, EXCEPTION, logging.INFO),
                     msg='database is unreachable',
@@ -89,9 +94,8 @@ def flush_all_sessions_to_storage():
                     }
                 )
     except Exception as file_error:
-        error_msg = f"CRITICAL: Не удалось записать логи ни в БД, ни в файл! Ошибка файла: {file_error}, Ошибка БД: {db_error}"
-        # print(error_msg, file=sys.stderr)
-        # send_emergency_alert(error_msg)
+        pass
+        raise RuntimeError(f"CRITICAL: both db & fs failed. fs:{file_error}, db:{db_msg}") 
     finally:
         SESSION_HISTORY.clear()
 def show_sessions():
@@ -118,7 +122,8 @@ def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
         return [log for log in logs if log['level'] in allowed]
     return logs
 def commit_session(lg_level: str) -> None:
-    print(f'hi from commit session:{lg_level}')
+    pass
+    # print(f'hi from commit session:{lg_level}')
     # SESSION_HISTORY.append(session_container.get().copy())
     # print(f'filter logs calling ({lg_level})')
     # for msg in filter_logs(session_container.get(), lg_level):

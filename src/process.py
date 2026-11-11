@@ -10,7 +10,7 @@ from utils.decorators import process_task, retry_srv, persist_audit_trail
 import json
 
 
-@process_task('create_refs', FINEST)
+@process_task('create_refs')
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
     try:
         common.add_log(session, 'refs/views creation', 'start common', INFO)
@@ -34,7 +34,7 @@ def check_etl_bot():
     db_helper.check_etl_bot()
 
 # @retry_srv(MAX_RETRIES, RETRY_DELAY)
-@process_task('ODINASS PROC', FINEST)
+@process_task('ODINASS PROC')
 def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     period_range = (
         common.get_rolling_window_standard(True) if period == 'AUTO' else common.parse_date_range(period, is_odinass)
@@ -42,16 +42,17 @@ def get_fact_table(period: str = 'AUTO', is_odinass = True) -> None:
     db_helper.get_fact_table(*period_range)
 
 @retry_srv(MAX_RETRIES, RETRY_DELAY)
-@process_task('LSF FT PART', FINEST)
+@process_task('LSF FT PART')
 def upload_lsf_ft(period_from: str, period_to: str):
     db_helper.upload_ft(period_from, period_to, 0)
     db_helper.upload_ft(period_from, period_to, 1)
     db_helper.group()
 @persist_audit_trail
-@process_task('ETL PROC', FINEST)
-def start_etl() -> None:
+@process_task('ETL PROC')
+def start_etl(lg_lvl) -> None:
     session = session_container.get()
     try:
+        print('start etl')
         common.add_log(session, 'start etl', 'enter etl')
         # result = upload_docs()
         #result = get_fact_table()
@@ -76,7 +77,7 @@ def upload_docs() -> None:
             None.
     """
     db_helper.upload_docs(*common.get_rolling_window_standard(True))
-@process_task(FINEST)
+@process_task()
 def create_lsf_ref(content: Dict[str, Optional[str]]) -> None:
     session = session_container.get()
     for k, v in content.items():
