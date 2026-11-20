@@ -1,5 +1,5 @@
 SELECT 
-    z.ZPERIOD,
+    dateadd(year, -2000, z.ZPERIOD) ZPERIOD,
     z.ZAMNT,
     z001.CODE DTCODE,
     z002.CODE CTCODE,

@@ -1,19 +1,20 @@
 --- -- ledger region
  select 
 		s.key0 DS,
-    ssku.key0 SID,
+    	ssku.key0 SID,
 		ssku.barcode_idbarcode_sku BARC,  
-		l.saleledger_quantity_saleledger N_MAT,
-		cast(coalesce(stock_netweight_sku * saleledger_cost_saleledger_batch,0) as decimal(18,4)) NETW, 
+		-- l.saleledger_quantity_saleledger N_MAT,
+		lb.saleledger_cost_saleledger_batch N_MAT,
+		cast(coalesce(stock_netweight_sku * saleledger_cost_saleledger_batch, 0) as decimal(18,4)) NETW,
 		cast(coalesce(saleledger_cost_saleledger_batch * stock_grossweight_sku,0) as decimal(18,4)) GROSSW, 
-		cast(coalesce(l.saleledger_quantity_saleledger * stock_volume_sku, 0) as decimal(18,4)) VOL, 
+		cast(coalesce(lb.saleledger_cost_saleledger_batch * stock_volume_sku, 0) as decimal(18,4)) VOL, 
 		cast(lb.saleledger_cost_saleledger_batch 
 			/ l.saleledger_quantity_saleledger 
 			* l.saleledger_sum_saleledger as decimal(18, 4)) N_SUM,
 		cast(saleledger_valuevat_saleledger as decimal(10,2)) R_VAT, 
-    cast(stock_valuevat_batch as decimal(10,2)) B_VAT,
-		cast(l.saleledger_quantity_saleledger * sb.stock_cost_batch as decimal(18, 4)) BASE,
-        l.saleledger_datetime_saleledger DT_V,
+    	cast(stock_valuevat_batch as decimal(10,2)) B_VAT,
+		cast(lb.saleledger_cost_saleledger_batch * sb.stock_cost_batch as decimal(18, 4)) BASE,
+        l.saleledger_date_saleledger DT_V,
 		cast(case when l.saleledger_description_saleledger = 'Возврат за день'
 				then 1
 				else 0
@@ -22,9 +23,9 @@
 				then 581 
 				else 580
 			end as bigint) OP,
-      0 idx,
+      	0 idx,
 		lb.key1,
-    l.key0
+    	l.key0
 			
     from saleledger_saleledger l
     join saleledger_saleledgerbatch lb on lb.key0 = l.key0
@@ -151,8 +152,8 @@ sku_main_chunk as (
 		dt_v ZDV_T,
 		mc.isret ZISRET,
 		op ZOP,
-    1 ZIDX,
+   		1 ZIDX,
 		key1 ZKEY1,
-	  key0 ZKEY2	
+	  	key0 ZKEY2	
 	from sku_main_chunk mc
  

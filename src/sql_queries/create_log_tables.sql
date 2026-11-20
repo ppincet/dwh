@@ -21,5 +21,6 @@ create table ZMETRIC (
     SESSIONID UNIQUEIDENTIFIER not null,
     COMMAND varchar(50),
     ENTRY varchar(50),
-    DURATION bigint
+    DURATION bigint,
+    ROWS bigint
 )

@@ -1,4 +1,5 @@
-insert ZLSF_FACT (
+--- -- insert region
+insert ZLSF_FACT1 (
     ZDS,
     ZSID,
     ZBARC,
@@ -34,9 +35,9 @@ select
 	cast(sum(N_SUM - N_SUM * R_VAT /(100 + R_VAT)) as numeric(18,4))  ZR_SUM,
 	cast(sum(N_SUM) / sum(N_MAT) as numeric(18,4)) ZRV_PRICE,
 	cast((sum(N_SUM - N_SUM * R_VAT /(100 + R_VAT))) / sum(N_MAT) as numeric(18,4)) ZR_PRICE,
-	cast(sum(BASE + BASE * coalesce(BASE/(100+ B_VAT),0)) as numeric(18,4)) ZBV_SUM,
+	cast(sum(BASE * (1.0 + coalesce(B_VAT, 0) / 100.0)) as numeric(18,4)) ZBV_SUM,
 	cast(sum(BASE) as numeric(18,4)) ZB_SUM,
-	cast(sum(BASE) / sum(N_MAT * (1 + coalesce(B_VAT, 0) / 100)) as numeric(18, 4)) ZBV_PRICE,
+	cast(sum(BASE * (1.0 + coalesce(B_VAT, 0) / 100.0)) / nullif(sum(N_MAT), 0) as numeric(18, 4)) ZBV_PRICE,
 	cast(sum(BASE) / sum(N_MAT) as numeric(18,4)) ZB_PRICE,
 	cast(sum(N_SUM) / (sum(N_SUM - N_SUM * R_VAT /(100 + R_VAT))) - 1 as numeric(18,4)) ZVAT,
 	cast(sum(N_SUM - N_SUM * R_VAT /(100 + R_VAT) - BASE) as numeric(18,4)) ZGROSSIN,
@@ -46,9 +47,14 @@ select
 	ISRET ZRET,
 	OP ZOP
 from  ZLSF_FACT_STG f 
+where 1=1 
+	and DT_V = ?
+
 group by DT_V,
 	DS,
 	SID,
 	BARC,
 	OP,
     ISRET
+--- -- delete region
+delete ZLSF_FACT1 where ZPERIOD = ?

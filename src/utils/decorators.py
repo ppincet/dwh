@@ -27,7 +27,10 @@ def process_task(task_name : str = 'ETL PROC'):
                 session["status"] = SUCCESS
                 return result
             except Exception as e:
+                print(f'from process_task: ({type(e).__name__})')
+                
                 session["status"] = EXCEPTION
+                # raise ConnectionError from e
                 raise
             finally:
                 commit_session(lg_lvl)
@@ -43,10 +46,11 @@ def retry_srv(retries: int = 3, delay: float = 2.0):
                 try:
                     return func(*args, **kwargs)
                 except ConnectionError as e:
+                    print(f'from retry: {e}')
                     last_exception = e
                     if attempt == retries: raise
                     time.sleep(delay)
-                except ValueError as e: raise
+                except Exception as e: raise
             raise last_exception
         return wrapper
     return decorator

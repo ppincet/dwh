@@ -1,12 +1,13 @@
 import pyodbc
 from config import settings
 from pathlib import Path
-from utils.common import session_container, add_log, add_metric
+from utils.common import session_container, add_log, add_metric, convert_hex_to_bytes
 import pandas as pd
 import re
 import csv
 import time
-from datetime import datetime, timedelta
+import uuid
+from datetime import datetime, timedelta, date
 import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
 from utils.infra import run_bcp_import, get_object_size_mb
 
 SRC_DIR = Path(__file__).resolve().parent.parent
+META_DIR = f'{Path(__file__).resolve().parent.parent.parent}/meta'
 BATCH_SIZE = settings.BATCH_SIZE
 TASK_1S_NAME = '1S FACT'
 
@@ -28,6 +30,9 @@ cp_struct = {
     "status": None,
     "last_day" : None,
 }
+def add_tempdb_log(period: str, step: str, guid: str, cur: pyodbc.Cursor):
+    cur.execute(get_sql_statements('insert_tempdb_log.sql')[0], (guid, step, period))
+
 def get_conn_strings(): 
     params = {
         'src_1cb' :{
@@ -64,7 +69,7 @@ def get_conn_strings():
     }
 
 @contextmanager
-def get_system_cursors(src: str, mode : int = 0b11):
+def get_system_cursors(src: str = 'src_lsf', mode : int = 0b11):
     session = session_container.get()
     src_conn = None
     src_cursor = None
@@ -98,18 +103,12 @@ def get_system_cursors(src: str, mode : int = 0b11):
     finally:
         if src_conn: src_conn.close()
         if dst_conn: dst_conn.close()
-def flush_log_db(logs: list[dict]):
-    # raise RuntimeError(':-)')
-    print('inside flush log db')
-    # with get_system_cursors('src_lsf', 0b10) as (src_cur, dst_cur):
+def flush_log_db(logs: dict[list]):
+    pass
+    with get_system_cursors('src_lsf', 2) as (_, dst_cur):
+        statements = get_sql_statements('logs.sql')
+
         
-        # print(f'dst cur:{dst_cur}')
-    try:
-        for log in logs['metrics']:
-            for entry in log:
-                print(f'entry:{entry}')
-    except Exception as e:
-        print(f'from flush: {e}')
 def get_sql_statements(file_name: str, splitter:str = ';' ) -> None:
     filepath = f"{SRC_DIR}/sql_queries/{file_name}"
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -154,7 +153,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         '''
         view_name = view_name.upper()
         sql_view_create_statement = f'drop view if exists {view_name};\n create view {view_name} as \n select \n\t'
-        df = pd.read_excel('./vcb v1.xlsx', 
+        df = pd.read_excel(f'{META_DIR}/vcb v1.xlsx', 
             sheet_name='fields',
             header=None)
         result = df[df[3] == real_name]
@@ -417,7 +416,8 @@ def create_view_standalone(ref_name: str, view_name: str, aliases_only: bool, se
     except Exception as e:
         print(f'create view standalone exception: {e}')
         raise
-def populate_enums():   
+# 2 get evicted (deprecated)
+def populate_enums_():   
     server = f"{settings.DST_SRV},{settings.DST_PORT}"
     database = settings.DST_DB
     username = settings.DST_USR
@@ -452,7 +452,7 @@ def populate_enums():
         
     except Exception as e:
         print(f"Exception: {e}")
-    
+
 def read_csv_chunks(file_path, chunk_size=200):
     with open(file_path, mode='r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter=';')
@@ -539,7 +539,8 @@ def get_fact_table(period_from :str, period_to :str ) -> None:
                         'batch',
                         {
                             "duration": round(time.perf_counter() - start_time, 2),
-                            "batch_size" : round(get_object_size_mb(rows), 2)
+                            "batch_size" : round(get_object_size_mb(rows), 2),
+                            "rows": len(rows)
                         })
             last_row = rows[-1]
             last_period = last_row[0]
@@ -574,6 +575,7 @@ def create_t_accs(create_cursor: pyodbc.Cursor) -> None:
 def upload_docs(p_from: str, p_to: str) -> None:
     #
     # there is a need to create table & view manually
+    # 2do - create table & view upon metadata
     #
     session = session_container.get()
     try:
@@ -592,7 +594,22 @@ def upload_docs(p_from: str, p_to: str) -> None:
         add_log(session, 'upd docs', e, EXCEPTION)
         raise
     
-
+def populate_enums_rc():
+    with get_system_cursors(mode = 2) as (_, dst_cur):
+        statements = get_sql_statements('enums.sql', '---')
+        dst_cur.fast_executemany = True
+        dst_cur.execute(statements[0])
+        file_path = f'{META_DIR}/enums.csv'
+        with open(file_path, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f, delimiter='\t')
+            rows = ((
+                    convert_hex_to_bytes(row[0]),
+                    convert_hex_to_bytes(row[1]),
+                    row[2],
+                    row[3],
+                    0
+                ) for row in reader)
+            dst_cur.executemany(statements[1], rows)
 def init_subkonto():
    
     conn_strings = get_conn_strings()
@@ -726,6 +743,8 @@ def upload_core(payload) -> int:
     add_log(session, 'bcp prepare', 'start')
     with open(path, mode="w", encoding="utf-8", newline="") as f:
         while True:
+            # if batch_n == 2: raise ConnectionError
+            # batch_n += 1
             params = (
                 payload['df'],
                 payload['dt'],
@@ -736,6 +755,7 @@ def upload_core(payload) -> int:
             start_time = time.perf_counter()
             payload['sc'].execute(payload['stmnt'], params)
             rows = payload['sc'].fetchall()
+            
             if not rows: 
                 break
             add_metric(session, 
@@ -822,15 +842,68 @@ def upload_ft(period_from: str, period_to: str, idx):
             
     # except Exception as e:               
     #     add_log(session, 'upload', f'{e} (most likely src is unreachable)', EXCEPTION)
-def group() -> None :
+def group(period_from: str, period_to: str) -> None :
+    guid = str(uuid.uuid4())
     session = session_container.get()
     add_log(session, 'upload', 'start grouping')
+    upd_cp =   upd_cp = cp_struct.copy()
+    upd_cp['task_name'] = 'ZFACTLSF-GROUP'
+    d_from = date.fromisoformat(period_from)
+    d_to = date.fromisoformat(period_to)
     with get_system_cursors('src_lsf', 2) as (_, dst_cur):
-        dst_cur.execute('truncate table ZLSF_FACT')
-        dst_cur.execute(get_sql_statements('pg_group.sql')[0])
-        print(f'row count:{dst_cur.rowcount}')
-        dst_cur.execute('truncate table ZLSF_FACT_STG')
+        cp = get_or_create_checkpoint(dst_cur, 
+                                        'ZFACTLSF-GROUP', 
+                                        period_from,   
+                                        period_to) 
+        current_date = cp['last_day'] + timedelta(days=1) if cp['last_day'] else d_from
+        total_rows = cp['total_rows']
+        count = 0
+        add_log(session,'upload', 'start create idx')
+        add_tempdb_log(None, 'before create idx', guid, dst_cur)
+        dst_cur.execute(get_sql_statements('lsf_idx.sql', '---')[4])
+        add_log(session,'upload', 'end create idx')
+        add_tempdb_log(None, 'after create idx', guid, dst_cur)
+        delete = get_sql_statements('pg_group.sql', '---')[1]
+        insert = get_sql_statements('pg_group.sql', '---')[0]
+        while current_date <= d_to:
+            next_date = current_date + timedelta(days=1)
+            add_tempdb_log(current_date, 'group batch begin', guid, dst_cur)
+            dst_cur.execute(delete, (current_date))
+            dst_cur.execute(insert, (current_date))
+            add_tempdb_log(current_date, 'group batch end', guid, dst_cur)
+            total_rows += dst_cur.rowcount
+            upd_cp['total_rows'] = total_rows
+            upd_cp['last_day'] = current_date
+            upd_cp['status'] = 'IN_PROGRESS'
+            update_checkpoint(dst_cur,  upd_cp)
+            current_date = next_date
+            dst_cur.commit()
+        upd_cp['total_rows'] = total_rows
+        upd_cp['last_day'] = None
+        upd_cp['status'] = 'SUCCESS'
+        update_checkpoint(dst_cur,  upd_cp)
+        add_tempdb_log(None, 'before create clust idx', guid, dst_cur)
+        dst_cur.execute(get_sql_statements('lsf_idx.sql', '---')[0])
+        add_tempdb_log(None, 'after create clust idx', guid, dst_cur)
+        # dst_cur.execute('truncate table ZLSF_FACT_STG')
+        add_log(session,'upload', 'end drop idx')
         add_log(session, 'upload', 'finish grouping')
+def prepare_group():
+    session =    session = session_container.get()
+    add_log(session, 'upload', 'prepare grouping')
+    guid = str(uuid.uuid4())
+    with get_system_cursors('src_lsf', 2) as (_, dst_cur):
+        add_tempdb_log(None, 'before create clust idx', guid, dst_cur)
+        dst_cur.execute(get_sql_statements('lsf_idx.sql', '---')[2])
+        add_tempdb_log(None, 'after create clust idx', guid, dst_cur)
+        dst_cur.execute(get_sql_statements('lsf_idx.sql', '---')[1])
+        add_tempdb_log(None, 'after create nonclust idx', guid, dst_cur)
+        dst_cur.execute('truncate table ZLSF_FACT1')
+def prepare_upload():
+    session =  session_container.get()
+    add_log(session, 'upload', 'prepare')
+    with get_system_cursors('src_lsf', 2) as (_, dst_cur):
+        dst_cur.execute(get_sql_statements('prepare.sql')[0])
 #endregion
 
 

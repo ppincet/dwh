@@ -16,37 +16,98 @@ def prepare_unified_audit_trail() -> list[dict]:
     payload = {
         'flat' : [],
         'metrics' : [],
+        'sessions': [],
+        'logs': [],
     }
     for session in SESSION_HISTORY:
         session_id = session.get("session_id")
         parent_session_id = session.get("parent_session_id")
         command = session.get("command")
+        
         for log in session.get("logs", []):
-            enriched_log = {
-                "session_id": session_id,
-                "parent_session_id": parent_session_id,
-                "command": command,
-                "timestamp": log["timestamp"],
-                "record_type": "LOG",
-                "level": log["level"],
-                "step_name": log["step_name"],
-                "message": log["message"],
-            }
-            payload['flat'].append(enriched_log)
+
+            payload['flat'].append({
+                    "session_id": session_id,
+                    "command": command,
+                    "timestamp": log["timestamp"],
+                    "level": log["level"],
+                    "step_name": log["step_name"],
+                    "parent_session_id": parent_session_id,
+                    "record_type": "LOG",
+                    "message": log["message"],
+                    })
+       
         for metric in session.get('metrics', []):
             enriched_metric = {
                 "session_id": session_id,
-                "parent_session_id": parent_session_id,
                 "command": command,
                 "timestamp": metric["timestamp"],
-                "record_type": "METRIC", 
                 "level": metric["level"],
                 "step_name": metric["step_name"],
+                "parent_session_id": parent_session_id,
+                "record_type": "METRIC", 
                 "message": f'batch size: {metric["batch_size"]}, duration: {metric["duration"]} , rows: {metric["rows"]}',
             }
+
             payload['flat'].append(enriched_metric)
-        payload['metrics'].append(session.get('metrics', []))
+            metric['session_id'] = session_id
+            payload['metrics'].append(metric)
     payload['flat'].sort(key=lambda x: x["timestamp"])
+
+    tempo = {}
+    for session in payload['flat']:
+        key = session['session_id']
+        if session['session_id'] not in tempo:
+            status = session['level'] if session['level'] != 'INFO' else 'SUCCESS'
+            entry = {
+                'id': key,
+                'pid': session['parent_session_id'],
+                'p_start': session['timestamp'],
+                'p_end': session['timestamp'],
+                'command': session['command'],
+                'status': status 
+            }
+            tempo[key] = entry
+        else:
+            tempo[key]['p_end'] = session['timestamp']
+            tempo[key]['status'] = session['level'] if session['level'] != 'INFO' else 'SUCCESS'
+    payload['sessions'] = [
+        (
+            item['id'],
+            item['pid'],
+            item['p_start'],
+            item['p_end'],
+            item['command'],
+            item['status'],
+        ) for item in tempo.values() 
+    ]
+    payload['logs'] = [(
+        item['session_id'],
+        item['command'],
+        item['message'],
+        item['level'],
+        item['timestamp']
+        ) for item in payload['flat'] if item.get('record_type') == 'LOG'
+    ]
+
+    # for log in payload['logs']:
+    #     print(log)
+    # print('------------------')
+    # for log in payload['logs']:
+    #     print(log)
+    # lookup = {
+    #     item['session_id'] : item for item in payload['flat'][:-1]
+    # }
+    # for k, session in lookup.items():
+    #     _status = session['level'] if session['level'] != 'INFO' else 'SUCCESS'
+    #     tempo.append({
+    #         'id': session['session_id'],
+    #         'pid': session['parent_session_id'],
+    #         'p_start': session['timestamp'],
+    #         'p_end': p_end if k == key else session['timestamp'],
+    #         'command': session['command'],
+    #         'status': status if k == key else _status
+    #     })
     return payload
 
 def flush_all_sessions_to_storage():
@@ -68,8 +129,8 @@ def flush_all_sessions_to_storage():
                 level=getattr(logging, log["level"], logging.INFO),
                 msg=log["message"],
                 extra={
-                    "parent_session_id": log["parent_session_id"],
                     "session_id": log["session_id"],
+                    "parent_session_id": log["parent_session_id"],
                     "task_name": log["command"],
                     "step_name": log["step_name"],
                     "level": log["level"],
@@ -98,10 +159,10 @@ def flush_all_sessions_to_storage():
         raise RuntimeError(f"CRITICAL: both db & fs failed. fs:{file_error}, db:{db_msg}") 
     finally:
         SESSION_HISTORY.clear()
-def show_sessions():
-    for idx, session in enumerate(SESSION_HISTORY, 1):
-        for i, log in enumerate(session['logs'], 1):
-                print(f'log entry: {log}')
+# def show_sessions():
+#     for idx, session in enumerate(SESSION_HISTORY, 1):
+#         for i, log in enumerate(session['logs'], 1):
+#                 print(f'log entry: {log}')
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
         Args:
