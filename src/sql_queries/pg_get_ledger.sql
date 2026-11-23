@@ -114,7 +114,6 @@ WHERE l.stock_active_skuledger IS NOT NULL
 	  	179455,
 	  	5105135458,
 		14213275406,
-		101314170,
   		101314170 
   )
   AND l.stock_date_skuledger >= ?:: timestamp

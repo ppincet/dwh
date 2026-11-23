@@ -11,8 +11,9 @@ import json
 
 
 @process_task('create_refs')
-def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool) -> None:
+def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool, session) -> None:
     try:
+        print(f'session: {session}')
         common.add_log(session, 'refs/views creation', 'start common', INFO)
         for k, v in content.items():
             if k is None: continue
@@ -77,6 +78,7 @@ def start_etl(lg_lvl) -> None:
     except Exception as e:
         common.add_log(session, 'start etl', 'etl failed', EXCEPTION)
         raise
+@process_task('ETL PROC')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     session = session_container.get()
     create_refs(content, aliases_only, False, session)

@@ -3,6 +3,7 @@ import typer
 import process
 import sys
 from typing import Optional, Literal
+from itertools import zip_longest
 
 
 app = typer.Typer(
