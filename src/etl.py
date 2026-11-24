@@ -58,7 +58,8 @@ def custom(
     
     
 @app.command()
-def init(log_type: str = typer.Option(
+def init(
+    log_type: str = typer.Option(
         "full",
         "--log-type",
         help = "Log type. Options: full, medium, successfull",
@@ -91,13 +92,30 @@ def init(log_type: str = typer.Option(
     period: str = typer.Option(
         None,
         "--period",
-        help="period_from(optional)  - period_to (optional)"
+        help="period_from(optional)  - period_to (optional)"),
+        
+    full: Optional[bool] = typer.Option(
+        False,
+        "--from-scratch",
+        help="creates new instance"
+    ),
+    mode: str = typer.Option(
+        "--both",
+        "--ref-only",
+        "--view-only",
+        help="init mode (both, refs, view)"
     )
+    
     
 ):
     '''
         system init
     '''
+    if full:
+        print(f'opt:{full}')
+        print(mode)
+        pass
+    pass
     refs = []
     views = []
     if ref_list:
