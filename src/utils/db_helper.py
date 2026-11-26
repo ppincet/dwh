@@ -140,17 +140,17 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         tempo_name = f'ZTREF{name}'
         sql_select_statement = 'SELECT '
         sql_insert_statement = f'insert {tempo_name} ('
-        sql_create_buffer_statement = f'''
-            DROP TABLE IF EXISTS {stage_buffer_name} ;
-            create table {stage_buffer_name} (
-        '''
+        # sql_create_buffer_statement = f'''
+        #     DROP TABLE IF EXISTS {stage_buffer_name} ;
+        #     create table {stage_buffer_name} (
+        # '''
         sql_create_statement = f'''
             DROP TABLE IF EXISTS {stage_stock_name};
             create table {stage_stock_name} (
         '''
-        sql_create_tempo_statement = f'''
-            create table {tempo_name} (
-        '''
+        # sql_create_tempo_statement = f'''
+        #     create table {tempo_name} (
+        # '''
         view_name = view_name.upper()
         sql_view_create_statement = f'drop view if exists {view_name};\n create view {view_name} as \n select \n\t'
         df = pd.read_excel(f'{META_DIR}/vcb v1.xlsx', 
@@ -348,7 +348,7 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
                         ))
 #endregion
 #region odinass
-
+#deprecated
 def update_ref(src_cursor: pyodbc.Cursor, 
                dst_cursor: pyodbc.Cursor, 
                ref_name: str,
@@ -389,8 +389,6 @@ def create_ref(name: str, view_name: str, aliases_only : bool, session: dict) ->
         statements = create_schema(name, view_name, aliases_only)
         with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             dst_cursor.execute(statements['sql_create'])
-            dst_cursor.execute(statements['sql_buffer_create'])
-            dst_cursor.execute(statements['sql_create_tempo'])
             create_view(dst_cursor, statements['sql_view_create'])
             update_ref(src_cursor, dst_cursor, name, statements)
     except Exception as e:
