@@ -904,4 +904,7 @@ def prepare_upload():
         dst_cur.execute(get_sql_statements('prepare.sql')[0])
 #endregion
 
-
+#region tst
+def tst(**kwargs):
+    print(f'passed: {kwargs}')
+#endregion
