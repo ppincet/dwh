@@ -20,6 +20,42 @@ def get_object_size_mb(obj):
         return size
     return inner(obj) / (1024 * 1024)
 
+def run_bcp_export_bin(
+    file_path: str,
+    table_name:str,
+    batch_size: int
+):
+    cmd = [
+        "bcp", table_name,
+        "out", file_path,
+        "-h", "TABLOCK",  
+        "-S", settings.DST_SRV,  
+        "-d", settings.DST_DB, 
+        "-U", settings.DST_USR, 
+        "-P", settings.DST_PWD,
+        "-k",
+        "b", "150000",
+        "-a", "65535"
+        "-e", "./logs/bcp_error_rows.err"
+    ] 
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,  
+        stderr=subprocess.PIPE,  
+        text=True,  
+        encoding="cp866",  
+    )
+        
+    if result.returncode == 0:
+        return result.stdout
+    else:
+        error_msg = (
+            f"bcp failed for file {csv_filepath}\n"
+            f"STDERR: {result.stderr}\n"
+            f"STDOUT: {result.stdout}"
+        )
+        raise RuntimeError(error_msg)
+
 def run_bcp_import(
     csv_filepath: str,
     table_name: str,
