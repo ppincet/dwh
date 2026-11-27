@@ -1,6 +1,5 @@
 import pyodbc
 from config import settings
-from pathlib import Path
 from utils.common import session_container, add_log, add_metric, convert_hex_to_bytes
 import pandas as pd
 import re
@@ -12,10 +11,10 @@ import traceback
 # from sqlalchemy import create_engine, Table, MetaData
 from contextlib import contextmanager
 from utils.constants.log_levels import EXCEPTION, SUCCESS, INFO, FINEST
-from utils.infra import run_bcp_import, get_object_size_mb
+from utils.constants.common import META_DIR, SRC_DIR
+from utils.infra import run_bcp_import, get_object_size_mb, run_bcp_bin
 
-SRC_DIR = Path(__file__).resolve().parent.parent
-META_DIR = f'{Path(__file__).resolve().parent.parent.parent}/meta'
+
 BATCH_SIZE = settings.BATCH_SIZE
 TASK_1S_NAME = '1S FACT'
 
@@ -136,10 +135,10 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
     try:
         real_name = f'_Reference{name}'
         stage_stock_name = f'ZSREF{name}'
-        stage_buffer_name = f'ZBREF{name}'
-        tempo_name = f'ZTREF{name}'
+        # stage_buffer_name = f'ZBREF{name}'
+        # tempo_name = f'ZTREF{name}'
         sql_select_statement = 'SELECT '
-        sql_insert_statement = f'insert {tempo_name} ('
+        sql_insert_statement = f'insert {stage_stock_name} ('
         # sql_create_buffer_statement = f'''
         #     DROP TABLE IF EXISTS {stage_buffer_name} ;
         #     create table {stage_buffer_name} (
@@ -153,7 +152,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
         # '''
         view_name = view_name.upper()
         sql_view_create_statement = f'drop view if exists {view_name};\n create view {view_name} as \n select \n\t'
-        df = pd.read_excel(f'{META_DIR}/vcb v1.xlsx', 
+        df = pd.read_excel(f'{META_DIR}/vcb_v1.xlsx', 
             sheet_name='fields',
             header=None)
         result = df[df[3] == real_name]
@@ -232,7 +231,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                         view_select_lines.append(f'\tisnull(Z{field_n}.ID, 0) {alias if alias else "Z" + field_n + "ID"}')
                         view_join_lines.append(f'left join ZSUBKONTO Z{field_n} on Z{field_n}.Z_TYPE = ref.{col_name_pure}RTREF and Z{field_n}.Z_REF = ref.{col_name_pure}RRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
-                    idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
+                    # idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} ({col_name_pure}RTREF, {col_name_pure}RRREF);''')
                 if ref_type == 3 :
                     lines.append(f"\tIDTREF\tbinary(4) default 0x{ref_ref} not null")
                     lines.append(f"\tIDRREF\tbinary(16) not null")
@@ -246,7 +245,7 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                     view_select_lines.append(f'\tisnull(zpid.ID, 0) {alias if alias else "ZPID"}')
                     view_join_lines.append(f'left join ZSUBKONTO zpid on zpid.Z_TYPE = ref.PARENTIDRTREF and zpid.Z_REF = ref.PARENTIDRRREF')
                     idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_stock_name} (PARENTIDRTREF, PARENTIDRRREF);''')
-                    idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} (PARENTIDRTREF, PARENTIDRRREF);''')
+                    # idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{col_name_pure}_Type_Ref ON {stage_buffer_name} (PARENTIDRTREF, PARENTIDRRREF);''')
 
                 if ref_type in [0, 2]:
                     
@@ -271,15 +270,15 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
                 
                 idx_p.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
                             ON {stage_stock_name} ({item}RTREF, {item}RRREF);''')
-                idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
-                            ON {stage_buffer_name} ({item}RTREF, {item}RRREF);''')
+                # idx_b.append(f'''CREATE NONCLUSTERED INDEX UIX_{item}_Type_Ref 
+                #             ON {stage_buffer_name} ({item}RTREF, {item}RRREF);''')
                 
             pk_s = f'\n\tCONSTRAINT PK_{stage_stock_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
-            pk_b = f'\n\tCONSTRAINT PK_{stage_buffer_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
-            pk_t = f'\n\tCONSTRAINT PK_{tempo_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
+            # pk_b = f'\n\tCONSTRAINT PK_{stage_buffer_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
+            # pk_t = f'\n\tCONSTRAINT PK_{tempo_name} PRIMARY KEY CLUSTERED (IDTREF, IDRREF));\n'
             sql_create_statement += ',\n'.join(lines) + '\n' + pk_s + '\n\n' + '\n'.join(idx_p)
-            sql_create_buffer_statement += ',\n'.join(lines) + '\n' + pk_b + '\n\n' + '\n'.join(idx_b)
-            sql_create_tempo_statement += ',\n'.join(lines) + '\n' + pk_t
+            # sql_create_buffer_statement += ',\n'.join(lines) + '\n' + pk_b + '\n\n' + '\n'.join(idx_b)
+            # sql_create_tempo_statement += ',\n'.join(lines) + '\n' + pk_t
             sql_select_statement += ','.join(select_lines) +f'\nfrom {real_name}'
             sql_view_create_statement += ',\n'.join(view_select_lines) + f'\nfrom {stage_stock_name} ref\n' + '\n'.join(view_join_lines)
             sql_insert_statement += ',\n'.join(insert_lines) + f") VALUES ({', '.join(['?'] * src_cnt)})"
@@ -288,8 +287,8 @@ def create_schema(name: str, view_name: str, aliases_only: bool) -> dict[str, st
             traceback.print_exc()
     return {
         'sql_create': sql_create_statement,
-        'sql_buffer_create': sql_create_buffer_statement,
-        'sql_create_tempo': sql_create_tempo_statement,
+        # 'sql_buffer_create': sql_create_buffer_statement,
+        # 'sql_create_tempo': sql_create_tempo_statement,
         'sql_select': sql_select_statement,
         'sql_view_create': sql_view_create_statement,
         'sql_insert': sql_insert_statement,
@@ -348,34 +347,38 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
                         ))
 #endregion
 #region odinass
-#deprecated
-def update_ref(src_cursor: pyodbc.Cursor, 
-               dst_cursor: pyodbc.Cursor, 
-               ref_name: str,
-               statements: dict[str,str]) -> None:
-    try:
-        stmnt = 'TRUNCATE TABLE Z{0}REF{1}'.format
-        dst_cursor.execute(stmnt('S', ref_name))
+def backup_subkonto():
+    run_bcp_bin(
+        file_path = f'{META_DIR}/subkonto.bin',
+        sql_statement = f"SELECT [ID], [Z_TYPE], [Z_REF] FROM ZSUBKONTO ORDER BY [ID] ASC",
+        batch_size = 150000,
+        mode = "out")
+
+def restore_subkonto():
+    with get_system_cursors(mode = 2) as (_, dst_cursor):
+        dst_cursor.execute('truncate table ZSUBKONTO')
+        dst_cursor.execute("ALTER INDEX UIX_Z_SUBKONTO_Type_Ref ON ZSUBKONTO DISABLE;")
+        #bcp part
+        dst_cursor.execute("ALTER INDEX UIX_Z_SUBKONTO_Type_Ref ON ZSUBKONTO REBUILD;")
+        cursor.execute(f"DBCC CHECKIDENT ('ZSUBKONTO', RESEED);")
+        cursor.execute(f"UPDATE STATISTICS ZSUBKONTO;")
+
+def update_ref(ref_name: str, statements: dict[str,str], session: dict) -> None:
+    with get_system_cursors('src_1sb') as (src_cursor, dst_cursor):
+        dst_cursor.execute(f'TRUNCATE TABLE ZSREF{ref_name}')
         src_cursor.execute(statements['sql_select'])
         for chunk in get_data_chunks(src_cursor, 5000):
             dst_cursor.executemany(statements['sql_insert'], chunk)
         dst_cursor.execute(f'''
-                            insert ZSREF{ref_name}
-                            select t.* 
-                            from ZTREF{ref_name} t
-                            left join ZBREF{ref_name} b
-                            on t.IDRREF = b.IDRREF
-                            where t.VERSION<>b.VERSION
-                            or b.IDRREF is null
-                        ''')
-        dst_cursor.execute(stmnt('B', ref_name))
-        dst_cursor.execute(f'''insert into ZBREF{ref_name}
-                            select * from ZTREF{ref_name}
-                            ''')
-        dst_cursor.execute(f'drop table ZTREF{ref_name}')
-    except Exception as e:
-        print(f'update ref exception {e}')
-        raise
+                    insert ZSUBKONTO (Z_TYPE, ZREF)
+                    select IDTREF, IDRREF from ZSREF{ref_name} s
+                    where not exists (
+                        select 1 from ZSUBKONTO
+                        where s.IDTREF = Z_TYPE 
+                            and s.IDRREF = Z_REF)
+                ''')
+        if dst_cursor.rowcount:
+            add_log(session, 'update ref', f'ZSREF{ref_name} new rows: {dst_cursor.rowcount}')
 
 def create_view(dst_cursor: pyodbc.Cursor, statement: str) -> None:
     try:
@@ -390,9 +393,8 @@ def create_ref(name: str, view_name: str, aliases_only : bool, session: dict) ->
         with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             dst_cursor.execute(statements['sql_create'])
             create_view(dst_cursor, statements['sql_view_create'])
-            update_ref(src_cursor, dst_cursor, name, statements)
+            update_ref(name, statements, session)
     except Exception as e:
-        print(f'create ref  exception: {e}')    
         raise
     
 
@@ -407,49 +409,11 @@ def update_ref_standalone(ref_name: str, view_name: str, aliases_only: bool, ses
 def create_view_standalone(ref_name: str, view_name: str, aliases_only: bool, session: dict) -> None:
     try:
         statements = create_schema(ref_name, view_name, aliases_only)
-        print('view create')
-        print(statements['sql_view_create'])
         with get_system_cursors('src_1cb') as (src_cursor, dst_cursor):
             create_view(dst_cursor, statements['sql_view_create'])
     except Exception as e:
         print(f'create view standalone exception: {e}')
         raise
-# 2 get evicted (deprecated)
-def populate_enums_():   
-    server = f"{settings.DST_SRV},{settings.DST_PORT}"
-    database = settings.DST_DB
-    username = settings.DST_USR
-    password = settings.DST_PWD
-    connection_string = (
-        f"mssql+pyodbc://{username}:{password}@{server}/{database}"
-        f"?driver=ODBC+Driver+17+for+SQL+Server"    
-    )
-  
-    try:
-        engine = create_engine(connection_string)
-        df = pd.read_csv('./enums.csv', 
-            sep=';', 
-            encoding='utf-8',
-            header=None,  
-            names=['ZREF', 'ZSYN', 'ZDESCR'])
-        
-        if 'ZREF' in df.columns:
-            df['ZREF'] = df['ZREF'].apply(convert_hex_to_bytes)
-        df.to_sql(
-            name='ZENUM',
-            con=engine,
-            if_exists='append',  
-            index=False,         
-            chunksize=1000,
-            dtype={
-            'ZREF': BINARY(16),  
-            'ZSYN': NVARCHAR(128),    
-            'ZDESCR': NVARCHAR(255)  
-        }
-        )
-        
-    except Exception as e:
-        print(f"Exception: {e}")
 
 def read_csv_chunks(file_path, chunk_size=200):
     with open(file_path, mode='r', encoding='utf-8') as f:

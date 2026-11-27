@@ -20,24 +20,37 @@ def get_object_size_mb(obj):
         return size
     return inner(obj) / (1024 * 1024)
 
-def run_bcp_export_bin(
+def run_bcp_bin(
     file_path: str,
-    table_name:str,
-    batch_size: int
+    batch_size: int,
+    mode: str,
+    table_name:str | None = None,
+    sql_statement: str | None = None
 ):
+    if mode == "in":
+        target = table_name
+        direction = "in"
+        extra_flags = ["-E", "-h", "TABLOCK"]
+    else:
+        target = sql_statement
+        direction = "queryout"
+        extra_flags = []
     cmd = [
-        "bcp", table_name,
-        "out", file_path,
-        "-h", "TABLOCK",  
+        "bcp", 
+        target,
+        direction,
+        file_path,
         "-S", settings.DST_SRV,  
         "-d", settings.DST_DB, 
         "-U", settings.DST_USR, 
         "-P", settings.DST_PWD,
-        "-k",
-        "b", "150000",
-        "-a", "65535"
-        "-e", "./logs/bcp_error_rows.err"
+        "-n",
+        "-b", str(batch_size),
+        "-a", "65535",
+        "-e", "./logs/bcp_error_rows.err",
+        *extra_flags
     ] 
+   
     result = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,  
@@ -50,7 +63,7 @@ def run_bcp_export_bin(
         return result.stdout
     else:
         error_msg = (
-            f"bcp failed for file {csv_filepath}\n"
+            f"bcp failed for file {file_path}\n"
             f"STDERR: {result.stderr}\n"
             f"STDOUT: {result.stdout}"
         )
@@ -61,6 +74,7 @@ def run_bcp_import(
     table_name: str,
     delimiter: str = "\t",
 ):
+    
     cmd = [
         "bcp", table_name,
         "in", csv_filepath,

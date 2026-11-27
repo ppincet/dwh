@@ -5,31 +5,42 @@ from utils.constants.log_levels import MODE_FULL, MODE_MEDIUM, MODE_SUCCESS
 from config.settings import RETRY_DELAY, MAX_RETRIES
 from typing import List, Dict, Optional
 import importlib
-from utils.common import session_container, get_rolling_window
+from utils.common import session_container, get_rolling_window,to_opt_str
 from utils.decorators import process_task, retry_srv, persist_audit_trail
 import json
 
-
+@persist_audit_trail
+@process_task('global')
+def perform_global():
+    session = session_container.get()
+    common.add_log(session, 'global','start', INFO)
+    db_helper.backup_subkonto()
+    # content = common.get_refs('B:C') # odinass
+    # create_refs(content, False, False, session)
+    # todo lsf region
+    common.add_log(session, 'global', 'finish', INFO)
+    
 @process_task('create_refs')
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool, session) -> None:
     try:
-        print(f'session: {session}')
         common.add_log(session, 'refs/views creation', 'start common', INFO)
         for k, v in content.items():
             if k is None: continue
             if not view_only:
+                print(f'{k}({v}) start')
                 db_helper.create_ref(f'{k}', 
                     v if v is not None else f'VREF{k}',
                     aliases_only,
                     session)
+                status = f'{k}({v}) done'
+                print(f'{datetime.datetime.now()}:{status}')
+                common.add_log(session, 'create refs', status)
             else:
                 db_helper.create_view_standalone(k, v, aliases_only, session)
-            common.add_log(session, 'refs/views creation', f'{k} done', SUCCESS)
+            common.add_log(session, 'refs/views creation', status, SUCCESS)
     except Exception as e:
-        common.add_log(session, 'refs/views creation', '', EXCEPTION)
-    finally: 
-        # filter & commit session
-        print(f'{datetime.datetime.now()} : done create refs')
+        common.add_log(session, 'refs/views creation', e, EXCEPTION)
+        raise
 
 def check_etl_bot():
     db_helper.check_etl_bot()
@@ -81,6 +92,7 @@ def start_etl(lg_lvl) -> None:
 @process_task('ETL PROC')
 def do_init(content: dict[str, str], aliases_only: bool) -> None:
     session = session_container.get()
+    pass
     create_refs(content, aliases_only, False, session)
 def perform_command(module_name: str, command: str, args: dict[str, str]) -> None:
     method = getattr(importlib.import_module(module_name), command, **args)

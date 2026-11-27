@@ -112,24 +112,22 @@ def init(
         system init
     '''
     if full:
-        print(f'opt:{full}')
-        print(mode)
-        pass
-    pass
-    refs = []
-    views = []
-    if ref_list:
-        refs = [item.strip() for item in ref_list.split(",") if item.strip()]
-    if view_list:
-        views = [item.strip() for item in view_list.split(",") if item.strip()]
-    content = dict(zip_longest(refs, views, fillvalue=None))
-    if src_type == 'lsf':
-        process.create_lsf_ref(content)
-    elif src_type == 'odinass':
-        if view_only:
-            process.create_refs(content, aliases_only, view_only)
-        else:
-            process.do_init(content, aliases_only)
+       process.perform_global()
+    else:
+        refs = []
+        views = []
+        if ref_list:
+            refs = [item.strip() for item in ref_list.split(",") if item.strip()]
+        if view_list:
+            views = [item.strip() for item in view_list.split(",") if item.strip()]
+        content = dict(zip_longest(refs, views, fillvalue=None))
+        if src_type == 'lsf':
+            process.create_lsf_ref(content)
+        elif src_type == 'odinass':
+            if view_only:
+                process.create_refs(content, aliases_only, view_only)
+            else:
+                process.do_init(content, aliases_only)
     
 @app.command()
 def upd():

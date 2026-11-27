@@ -2,16 +2,16 @@ import datetime
 import pandas as pd
 import uuid
 from utils.constants.log_levels import SUCCESS, WARNING, EXCEPTION
+from utils.constants.common import CONFIG_DIR, META_DIR
 from utils.logger import audit_logger
 from pathlib import Path
 import contextvars
 import logging
 import json
-CONFIG_DIR = Path(__file__).resolve().parent / "config"
 #region session
 session_container = contextvars.ContextVar('session_container', default=None)
 SESSION_HISTORY = []
-    
+
 def prepare_unified_audit_trail() -> list[dict]:
     payload = {
         'flat' : [],
@@ -252,6 +252,18 @@ def add_metric(session: dict, step_name: str, metric: dict, level: str = "FINEST
 
 #endregion
 #region tutti
+def get_refs(area: str):
+    print(CONFIG_DIR)
+    df = pd.read_excel(f'{META_DIR}/vcb_v1.xlsx', 
+        sheet_name='meta',
+        header=None,
+        usecols=area)
+    return { key : to_opt_str(val) for key, val in df.itertuples(index=False) }
+def to_opt_str(val: object) -> Optional[str]:
+    if val is None or pd.isna(val):
+        return None
+    s = str(val).strip()
+    return s if s else None
 def parse_date_range(date_str: str, odinass: bool = True) -> tuple[datetime.datetime, datetime.datetime]:
     # to 2: add, fill & use json
     date_str = date_str.strip()
@@ -289,7 +301,7 @@ def get_next_id(max_bytes: bytes) -> bytes:
 
 def get_rolling_window(
     window_name: str, 
-    config_file: str | Path = CONFIG_DIR / "rolling_windows.json"
+    config_file: str | Path = f'{CONFIG_DIR}/rolling_windows.json'
 ) -> tuple[datetime.datetime, datetime.datetime]:
     with Path(config_file).open('r', encoding='utf-8') as f:
         config = json.load(f)
