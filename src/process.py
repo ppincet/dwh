@@ -12,14 +12,19 @@ import json
 @persist_audit_trail
 @process_task('global')
 def perform_global():
-    session = session_container.get()
-    common.add_log(session, 'global','start', INFO)
-    db_helper.backup_subkonto()
-    # content = common.get_refs('B:C') # odinass
-    # create_refs(content, False, False, session)
-    # todo lsf region
-    common.add_log(session, 'global', 'finish', INFO)
-    
+    try:
+        session = session_container.get()
+        common.add_log(session, 'global','start', INFO)
+        print('before bu')
+        db_helper.backup_subkonto()
+        # content = common.get_refs('B:C') # odinass
+        # create_refs(content, False, False, session)
+        # todo lsf region
+        common.add_log(session, 'global', 'finish', INFO)
+    except Exception as e:
+        print(f'from global: {e}')
+        common.add_log(session, 'global', e, EXCEPTION)
+        
 @process_task('create_refs')
 def create_refs(content: Dict[str, Optional[str]], aliases_only: bool, view_only: bool, session) -> None:
     try:

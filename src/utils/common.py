@@ -90,24 +90,7 @@ def prepare_unified_audit_trail() -> list[dict]:
         ) for item in payload['flat'] if item.get('record_type') == 'LOG'
     ]
 
-    # for log in payload['logs']:
-    #     print(log)
-    # print('------------------')
-    # for log in payload['logs']:
-    #     print(log)
-    # lookup = {
-    #     item['session_id'] : item for item in payload['flat'][:-1]
-    # }
-    # for k, session in lookup.items():
-    #     _status = session['level'] if session['level'] != 'INFO' else 'SUCCESS'
-    #     tempo.append({
-    #         'id': session['session_id'],
-    #         'pid': session['parent_session_id'],
-    #         'p_start': session['timestamp'],
-    #         'p_end': p_end if k == key else session['timestamp'],
-    #         'command': session['command'],
-    #         'status': status if k == key else _status
-    #     })
+    
     return payload
 
 def flush_all_sessions_to_storage():
@@ -115,7 +98,7 @@ def flush_all_sessions_to_storage():
     db_failed = False
     prepared = prepare_unified_audit_trail()
     flat = prepared['flat']
-    
+    print(f'prepared: {prepared}')
     try:
         flush_log_db(prepared)
     except Exception as db_error:
@@ -138,10 +121,17 @@ def flush_all_sessions_to_storage():
                 }
             )
         
-
+        print('before db_failed')
         if db_failed:
-            first_session_id = prepared[0].get("session_id", "") if prepared else ""
-            # raise RuntimeError('!')
+            print('db failed')
+            try:
+                print('prepared[0]')
+                print(f'{prepared[0]}')
+                first_session_id = prepared[0].get("session_id", "") if prepared else ""
+                print('after session')
+            except Exception as e:
+                print(e)
+            print(f'first session id: {first_session_id}')
             audit_logger.log(
                     level=getattr(logging, EXCEPTION, logging.INFO),
                     msg='database is unreachable',
@@ -155,14 +145,10 @@ def flush_all_sessions_to_storage():
                     }
                 )
     except Exception as file_error:
-        pass
         raise RuntimeError(f"CRITICAL: both db & fs failed. fs:{file_error}, db:{db_msg}") 
     finally:
         SESSION_HISTORY.clear()
-# def show_sessions():
-#     for idx, session in enumerate(SESSION_HISTORY, 1):
-#         for i, log in enumerate(session['logs'], 1):
-#                 print(f'log entry: {log}')
+
 def filter_logs(logs: list[dict], lg_level: str) -> list[dict]:
     """returns back filtered audit trail upon log level.
         Args:
@@ -253,13 +239,12 @@ def add_metric(session: dict, step_name: str, metric: dict, level: str = "FINEST
 #endregion
 #region tutti
 def get_refs(area: str):
-    print(CONFIG_DIR)
     df = pd.read_excel(f'{META_DIR}/vcb_v1.xlsx', 
         sheet_name='meta',
         header=None,
         usecols=area)
     return { key : to_opt_str(val) for key, val in df.itertuples(index=False) }
-def to_opt_str(val: object) -> Optional[str]:
+def to_opt_str(val: object) -> str | None:
     if val is None or pd.isna(val):
         return None
     s = str(val).strip()

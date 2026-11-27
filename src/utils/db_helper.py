@@ -348,6 +348,7 @@ def update_checkpoint(dst_cursor : pyodbc.Cursor,  cp: dict) -> None:
 #endregion
 #region odinass
 def backup_subkonto():
+    print(f'inside subkonto:{META_DIR}')
     run_bcp_bin(
         file_path = f'{META_DIR}/subkonto.bin',
         sql_statement = f"SELECT [ID], [Z_TYPE], [Z_REF] FROM ZSUBKONTO ORDER BY [ID] ASC",

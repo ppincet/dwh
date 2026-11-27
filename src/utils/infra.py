@@ -35,6 +35,8 @@ def run_bcp_bin(
         target = sql_statement
         direction = "queryout"
         extra_flags = []
+
+    
     cmd = [
         "bcp", 
         target,
@@ -50,7 +52,7 @@ def run_bcp_bin(
         "-e", "./logs/bcp_error_rows.err",
         *extra_flags
     ] 
-   
+    return
     result = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,  

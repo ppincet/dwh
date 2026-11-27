@@ -56,14 +56,8 @@ def custom(
             args[k] = v
     process.perform_command(module, method, args)
     
-    
 @app.command()
-def init(
-    log_type: str = typer.Option(
-        "full",
-        "--log-type",
-        help = "Log type. Options: full, medium, successfull",
-    ),
+def mrefs(
     src_type: Literal["odinass", "lsf"] = typer.Option(
         "odinass",
         "--src-type",
@@ -89,45 +83,47 @@ def init(
         "--aliases-only",
         help="creates view if set",
     ),
-    period: str = typer.Option(
-        None,
-        "--period",
-        help="period_from(optional)  - period_to (optional)"),
-        
-    full: Optional[bool] = typer.Option(
-        False,
-        "--from-scratch",
-        help="creates new instance"
-    ),
     mode: str = typer.Option(
-        "--both",
-        "--ref-only",
-        "--view-only",
-        help="init mode (both, refs, view)"
-    )
+            "--both",
+            "--ref-only",
+            "--view-only",
+            help="init mode (both, refs, view)"
+        )
+
+):
+    pass
+@app.command()
+def init(
+    log_type: str = typer.Option(
+        "full",
+        "--log-type",
+        help = "Log type. Options: full, medium, successfull",
+    ),
     
-    
+    # period: str = typer.Option(
+    #     None,
+    #     "--period",
+    #     help="period_from(optional)  - period_to (optional)"),
 ):
     '''
         system init
     '''
-    if full:
-       process.perform_global()
-    else:
-        refs = []
-        views = []
-        if ref_list:
-            refs = [item.strip() for item in ref_list.split(",") if item.strip()]
-        if view_list:
-            views = [item.strip() for item in view_list.split(",") if item.strip()]
-        content = dict(zip_longest(refs, views, fillvalue=None))
-        if src_type == 'lsf':
-            process.create_lsf_ref(content)
-        elif src_type == 'odinass':
-            if view_only:
-                process.create_refs(content, aliases_only, view_only)
-            else:
-                process.do_init(content, aliases_only)
+    process.perform_global()
+    # else:
+    #     refs = []
+    #     views = []
+    #     if ref_list:
+    #         refs = [item.strip() for item in ref_list.split(",") if item.strip()]
+    #     if view_list:
+    #         views = [item.strip() for item in view_list.split(",") if item.strip()]
+    #     content = dict(zip_longest(refs, views, fillvalue=None))
+    #     if src_type == 'lsf':
+    #         process.create_lsf_ref(content)
+    #     elif src_type == 'odinass':
+    #         if view_only:
+    #             process.create_refs(content, aliases_only, view_only)
+    #         else:
+    #             process.do_init(content, aliases_only)
     
 @app.command()
 def upd():
